@@ -199,6 +199,8 @@ export default function Requests() {
   })();
   const calendarRequests = requests.filter((request) => request.status !== 'refused' && request.start_date <= `${calendarMonth.getFullYear()}-${String(calendarMonth.getMonth() + 1).padStart(2, '0')}-${String(new Date(calendarMonth.getFullYear(), calendarMonth.getMonth() + 1, 0).getDate()).padStart(2, '0')}` && request.end_date >= `${calendarMonth.getFullYear()}-${String(calendarMonth.getMonth() + 1).padStart(2, '0')}-01`);
   const requestsForDay = (date) => {
+    const dayOfWeek = date.getDay(); // 0 = Sun, 6 = Sat
+    if (dayOfWeek === 0 || dayOfWeek === 6) return []; // Exclude weekends from displaying leave chips
     const dateString = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
     return calendarRequests.filter((request) => request.start_date <= dateString && request.end_date >= dateString);
   };
