@@ -7,5 +7,7 @@ const router = Router();
 router.post('/query', authenticate, ctrl.queryAi);
 router.post('/anomaly-scan', authenticate, ctrl.anomalyScan);
 router.get('/forecast', authenticate, ctrl.forecast);
+router.get('/usage-stats', authenticate, ctrl.getUsageStats);
 
 module.exports = router;
+
