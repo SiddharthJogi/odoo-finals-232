@@ -102,31 +102,31 @@ export default function AttendanceList() {
       </div>
 
       {/* Filter Toolbar */}
-      <div className="bg-white rounded-2xl p-4 shadow-sm border border-gray-200 grid grid-cols-1 sm:grid-cols-3 gap-4">
+      <div className="bg-card rounded-[2rem] p-6 shadow-sm border border-border grid grid-cols-1 sm:grid-cols-3 gap-6">
         <div>
-          <label className="block text-xs font-semibold text-gray-500 mb-1">Date From</label>
+          <label className="block text-xs font-bold text-muted-foreground uppercase tracking-widest mb-1.5">Date From</label>
           <input
             type="date"
             value={filters.date_from}
             onChange={(e) => setFilters((f) => ({ ...f, date_from: e.target.value }))}
-            className="w-full text-sm border-gray-300 rounded-xl focus:ring-emerald-500 focus:border-emerald-500 px-3 py-2 border"
+            className="w-full text-sm border-border bg-background rounded-xl focus:ring-primary focus:border-primary px-4 py-2.5 border transition-shadow"
           />
         </div>
         <div>
-          <label className="block text-xs font-semibold text-gray-500 mb-1">Date To</label>
+          <label className="block text-xs font-bold text-muted-foreground uppercase tracking-widest mb-1.5">Date To</label>
           <input
             type="date"
             value={filters.date_to}
             onChange={(e) => setFilters((f) => ({ ...f, date_to: e.target.value }))}
-            className="w-full text-sm border-gray-300 rounded-xl focus:ring-emerald-500 focus:border-emerald-500 px-3 py-2 border"
+            className="w-full text-sm border-border bg-background rounded-xl focus:ring-primary focus:border-primary px-4 py-2.5 border transition-shadow"
           />
         </div>
         <div>
-          <label className="block text-xs font-semibold text-gray-500 mb-1">Status Filter</label>
+          <label className="block text-xs font-bold text-muted-foreground uppercase tracking-widest mb-1.5">Status Filter</label>
           <select
             value={filters.status}
             onChange={(e) => setFilters((f) => ({ ...f, status: e.target.value }))}
-            className="w-full text-sm border-gray-300 rounded-xl focus:ring-emerald-500 focus:border-emerald-500 px-3 py-2 border bg-white"
+            className="w-full text-sm border-border bg-background rounded-xl focus:ring-primary focus:border-primary px-4 py-2.5 border transition-shadow"
           >
             <option value="">All Statuses</option>
             <option value="in_progress">In Progress</option>
@@ -138,12 +138,12 @@ export default function AttendanceList() {
       </div>
 
       {/* Table */}
-      <div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
+      <div className="bg-card rounded-[2rem] shadow-sm border border-border overflow-hidden">
         {loading ? (
-          <div className="text-center py-12 text-gray-400">Loading attendance records...</div>
+          <div className="text-center py-12 text-muted-foreground font-medium">Loading attendance records...</div>
         ) : (
-          <table className="min-w-full divide-y divide-gray-200 text-left">
-            <thead className="bg-gray-50/50 text-xs font-semibold uppercase text-gray-500 tracking-wider">
+          <table className="min-w-full text-left">
+            <thead className="bg-muted/50 text-[11px] font-bold uppercase text-muted-foreground tracking-wider border-b border-border">
               <tr>
                 <th className="px-6 py-4">Employee</th>
                 <th className="px-6 py-4">Check In</th>
@@ -153,14 +153,14 @@ export default function AttendanceList() {
                 {canEdit && <th className="px-6 py-4 text-right">Actions</th>}
               </tr>
             </thead>
-            <tbody className="divide-y divide-gray-100 text-sm">
+            <tbody className="divide-y divide-border text-sm">
               {attendances.map((att) => (
-                <tr key={att.id} className="hover:bg-gray-50/80 transition-colors">
-                  <td className="px-6 py-4 font-medium text-gray-900">
+                <tr key={att.id} className="hover:bg-muted/30 transition-colors">
+                  <td className="px-6 py-4 font-bold text-foreground">
                     <div>{att.employee_name || `Employee #${att.employee_id}`}</div>
-                    {att.job_position && <div className="text-xs text-gray-400 font-normal">{att.job_position}</div>}
+                    {att.job_position && <div className="text-xs text-muted-foreground font-medium mt-0.5">{att.job_position}</div>}
                     {att.scheduled_start && (
-                      <div className="text-[11px] text-gray-400 font-mono mt-0.5">
+                      <div className="text-[10px] uppercase tracking-wider text-muted-foreground font-bold mt-1 bg-muted/50 inline-block px-1.5 py-0.5 rounded">
                         Shift: {att.scheduled_start.slice(0, 5)} - {att.scheduled_end ? att.scheduled_end.slice(0, 5) : '17:00'}
                       </div>
                     )}
@@ -223,16 +223,18 @@ export default function AttendanceList() {
           </table>
         )}
         {!loading && attendances.length === 0 && (
-          <div className="text-center py-12 text-gray-400">No attendance logs found matching filters.</div>
+          <div className="text-center py-12 text-muted-foreground font-medium">No attendance logs found matching filters.</div>
         )}
       </div>
 
       {/* Correction Modal */}
       {editItem && (
-        <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl space-y-4">
-            <h3 className="text-lg font-bold text-gray-900">Correct Attendance Record</h3>
-            <p className="text-xs text-gray-500">Manual adjustment for {editItem.employee_name || `Employee #${editItem.employee_id}`}</p>
+        <div className="fixed inset-0 z-50 bg-background/80 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-card border border-border rounded-3xl max-w-md w-full p-8 shadow-2xl space-y-6">
+            <div>
+              <h3 className="text-xl font-extrabold text-foreground tracking-tight">Correct Attendance Record</h3>
+              <p className="text-sm text-muted-foreground font-medium mt-1">Manual adjustment for {editItem.employee_name || `Employee #${editItem.employee_id}`}</p>
+            </div>
 
             {error && <div className="p-3 bg-rose-50 text-rose-700 text-xs rounded-xl">{error}</div>}
 

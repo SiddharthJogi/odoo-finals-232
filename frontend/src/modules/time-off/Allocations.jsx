@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useAuth } from '../../auth/AuthContext';
 import client from '../../api/client';
 import { CalendarDays, TrendingDown, CheckCircle2, AlertCircle } from 'lucide-react';
+import { motion } from 'framer-motion';
 
 function SkeletonRow() {
   return (
@@ -109,58 +110,68 @@ export default function Allocations() {
 
       {/* Grid of Allocation Cards */}
       {loading ? (
-        <div className="text-center py-12 text-gray-400">Loading leave allocations...</div>
+        <div className="text-center py-12 text-muted-foreground font-medium">Loading leave allocations...</div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {allocations.map((alloc) => {
+        <motion.div 
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ staggerChildren: 0.1 }}
+          className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"
+        >
+          {allocations.map((alloc, index) => {
             const allocVal = Number(alloc.allocated);
             const takenVal = Number(alloc.taken);
             const remVal = Number(alloc.remaining);
             const pct = allocVal > 0 ? Math.min(100, Math.round((takenVal / allocVal) * 100)) : 0;
 
             return (
-              <div
+              <motion.div
+                initial={{ opacity: 0, y: 15 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.3, delay: index * 0.05 }}
                 key={alloc.id}
-                className="bg-white rounded-2xl p-6 shadow-sm border border-gray-200 hover:shadow-md transition-shadow space-y-4"
+                className="bg-card rounded-[2rem] p-8 shadow-sm border border-border hover:shadow-xl hover:border-primary/20 transition-all space-y-5 group"
               >
                 <div className="flex justify-between items-start">
                   <div>
-                    <h3 className="font-bold text-gray-900 text-lg">
+                    <h3 className="font-extrabold text-foreground text-xl tracking-tight group-hover:text-primary transition-colors">
                       {alloc.employee_name || `Employee #${alloc.employee_id}`}
                     </h3>
-                    <p className="text-xs font-semibold text-blue-600 uppercase tracking-wider mt-0.5">
+                    <p className="text-xs font-bold text-muted-foreground uppercase tracking-widest mt-1">
                       {alloc.type_name || `Leave Type #${alloc.type_id}`}
                     </p>
                   </div>
-                  <span className="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                  <span className="px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider bg-emerald-500/10 text-emerald-600 border border-emerald-500/20">
                     {alloc.status}
                   </span>
                 </div>
 
                 {/* Progress Bar */}
-                <div className="space-y-1.5">
-                  <div className="flex justify-between text-xs font-medium">
-                    <span className="text-gray-500">Used: {takenVal} {alloc.type_unit || 'days'}</span>
-                    <span className="text-gray-900 font-bold">{remVal} {alloc.type_unit || 'days'} remaining</span>
+                <div className="space-y-2">
+                  <div className="flex justify-between text-xs font-bold">
+                    <span className="text-muted-foreground">Used: {takenVal} {alloc.type_unit || 'days'}</span>
+                    <span className="text-foreground">{remVal} {alloc.type_unit || 'days'} remaining</span>
                   </div>
-                  <div className="w-full h-2.5 bg-gray-100 rounded-full overflow-hidden">
-                    <div
-                      className={`h-full rounded-full transition-all duration-500 ${
-                        pct > 85 ? 'bg-rose-500' : pct > 60 ? 'bg-amber-500' : 'bg-emerald-500'
+                  <div className="w-full h-3 bg-muted rounded-full overflow-hidden">
+                    <motion.div
+                      initial={{ width: 0 }}
+                      animate={{ width: `${pct}%` }}
+                      transition={{ duration: 1, ease: "easeOut" }}
+                      className={`h-full rounded-full ${
+                        pct > 85 ? 'bg-destructive' : pct > 60 ? 'bg-amber-500' : 'bg-primary'
                       }`}
-                      style={{ width: `${pct}%` }}
                     />
                   </div>
                 </div>
 
-                <div className="pt-2 border-t border-gray-100 flex justify-between text-xs text-gray-400">
-                  <span>Total: {allocVal} {alloc.type_unit || 'days'}</span>
+                <div className="pt-4 border-t border-border flex justify-between text-xs font-medium text-muted-foreground">
+                  <span>Total: <strong className="text-foreground">{allocVal}</strong> {alloc.type_unit || 'days'}</span>
                   <span>Valid: {alloc.valid_from} → {alloc.valid_to || '∞'}</span>
                 </div>
-              </div>
+              </motion.div>
             );
           })}
-        </div>
+        </motion.div>
       )}
 
       {!loading && allocations.length === 0 && (
@@ -171,12 +182,18 @@ export default function Allocations() {
 
       {/* New Allocation Modal */}
       {showModal && (
-        <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl space-y-4">
-            <h3 className="text-lg font-bold text-gray-900">Grant Leave Allocation</h3>
-            <p className="text-xs text-gray-500">Allocate leave balance to an employee</p>
+        <div className="fixed inset-0 z-50 bg-background/80 backdrop-blur-sm flex items-center justify-center p-4">
+          <motion.div 
+            initial={{ opacity: 0, scale: 0.95, y: 20 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            className="bg-card rounded-[2rem] border border-border max-w-md w-full p-8 shadow-2xl space-y-6"
+          >
+            <div>
+              <h3 className="text-xl font-extrabold text-foreground tracking-tight">Grant Leave Allocation</h3>
+              <p className="text-sm text-muted-foreground mt-1 font-medium">Allocate leave balance to an employee</p>
+            </div>
 
-            {error && <div className="p-3 bg-rose-50 text-rose-700 text-xs rounded-xl">{error}</div>}
+            {error && <div className="p-4 bg-destructive/10 border border-destructive/20 text-destructive text-sm font-bold rounded-2xl">{error}</div>}
 
             <form onSubmit={handleCreateAllocation} className="space-y-4">
               <div>
@@ -261,7 +278,7 @@ export default function Allocations() {
                 </button>
               </div>
             </form>
-          </div>
+          </motion.div>
         </div>
       )}
     </div>
