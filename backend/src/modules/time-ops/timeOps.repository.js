@@ -3,15 +3,19 @@ const db = require('../../db');
 // ───────────── Attendance ─────────────
 async function findAttendances(filters = {}) {
   let sql = `
-    SELECT 
-      a.*, 
-      e.name AS employee_name, 
+    SELECT
+      a.*,
+      e.name AS employee_name,
       e.job_position,
+      e.schedule_id,
       sl.start_time AS scheduled_start,
-      sl.end_time AS scheduled_end
+      sl.end_time AS scheduled_end,
+      ws.grace_period_minutes,
+      ws.overtime_buffer_minutes
     FROM attendances a
     LEFT JOIN employees e ON a.employee_id = e.id
-    LEFT JOIN schedule_lines sl ON sl.schedule_id = COALESCE(e.schedule_id, 1)
+    LEFT JOIN working_schedules ws ON ws.id = e.schedule_id
+    LEFT JOIN schedule_lines sl ON sl.schedule_id = e.schedule_id
       AND sl.day_of_week = EXTRACT(DOW FROM a.check_in)
     WHERE 1=1
   `;
@@ -42,14 +46,18 @@ async function findAttendances(filters = {}) {
 
 async function findOpenAttendance(employeeId) {
   const { rows } = await db.query(
-    `SELECT 
-       a.*, 
+    `SELECT
+       a.*,
        e.name AS employee_name,
+       e.schedule_id,
        sl.start_time AS scheduled_start,
-       sl.end_time AS scheduled_end
+       sl.end_time AS scheduled_end,
+       ws.grace_period_minutes,
+       ws.overtime_buffer_minutes
      FROM attendances a
      LEFT JOIN employees e ON a.employee_id = e.id
-     LEFT JOIN schedule_lines sl ON sl.schedule_id = COALESCE(e.schedule_id, 1)
+     LEFT JOIN working_schedules ws ON ws.id = e.schedule_id
+     LEFT JOIN schedule_lines sl ON sl.schedule_id = e.schedule_id
        AND sl.day_of_week = EXTRACT(DOW FROM a.check_in)
      WHERE a.employee_id = $1 AND a.check_out IS NULL AND a.status = 'in_progress'
      ORDER BY a.check_in DESC LIMIT 1`,

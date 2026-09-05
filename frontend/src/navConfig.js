@@ -1,0 +1,100 @@
+import {
+  LayoutDashboard,
+  Users,
+  Clock,
+  CalendarDays,
+  DollarSign,
+  UserCircle,
+  FileText,
+  Calendar,
+} from 'lucide-react';
+
+// Single source of truth for top nav structure + role visibility, shared by the nav bar
+// (App.jsx) and the first-login OnboardingTour so the tour never drifts from what a role
+// can actually see.
+export const NAV_ITEMS = [
+  {
+    path: '/users',
+    label: 'Users',
+    icon: UserCircle,
+    roles: ['admin'],
+    description: 'Create login accounts, assign roles, and manage access.',
+  },
+  {
+    path: '/employees',
+    label: 'Employees',
+    icon: Users,
+    roles: ['admin', 'hr_manager', 'hr_payroll_manager', 'hr_payroll_user'],
+    description: 'Browse, search, and manage employee records — list or kanban view.',
+    children: [
+      { path: '/employees', label: 'All Employees' },
+      { path: '/employees/kanban', label: 'Kanban View' },
+      { path: '/employees/new', label: '+ New Employee' },
+      { path: '/department-requests', label: 'Department Requests', roles: ['admin', 'hr_manager'] },
+    ],
+  },
+  {
+    path: '/contracts',
+    label: 'Contracts',
+    icon: FileText,
+    roles: ['admin', 'hr_manager', 'hr_payroll_manager', 'hr_payroll_user'],
+    description: 'View and manage employment contracts, wages, and terms.',
+    children: [
+      { path: '/contracts', label: 'All Contracts' },
+      { path: '/contracts/new', label: '+ New Contract' },
+    ],
+  },
+  {
+    path: '/schedules',
+    label: 'Schedules',
+    icon: Calendar,
+    roles: ['admin', 'hr_manager', 'hr_payroll_manager', 'hr_payroll_user'],
+    description: 'Define working hours, shift patterns, and flexible schedules.',
+    children: [
+      { path: '/schedules', label: 'Working Schedules' },
+      { path: '/schedules/new', label: '+ New Schedule' },
+    ],
+  },
+  {
+    path: '/attendance',
+    label: 'Attendance',
+    icon: Clock,
+    roles: ['admin', 'hr_manager', 'hr_payroll_manager', 'hr_payroll_user', 'employee'],
+    description: 'Check in/out and track daily attendance for yourself or the team.',
+    children: [
+      { path: '/attendance', label: 'Attendance Log' },
+      { path: '/attendance/check-in', label: 'Check In / Out' },
+    ],
+  },
+  {
+    path: '/time-off',
+    label: 'Time Off',
+    icon: CalendarDays,
+    roles: ['admin', 'hr_manager', 'hr_payroll_manager', 'hr_payroll_user', 'employee'],
+    description: 'Request leave, view the team calendar, and manage approvals.',
+    children: [
+      { path: '/time-off', label: 'Requests' },
+      { path: '/time-off/allocations', label: 'Allocations' },
+      { path: '/time-off/types', label: 'Leave Types' },
+    ],
+  },
+  {
+    path: '/payroll',
+    label: 'Payroll',
+    icon: DollarSign,
+    roles: ['admin', 'hr_payroll_manager', 'hr_payroll_user', 'hr_manager'],
+    description: 'Run payroll, manage salary structures, and view payslips.',
+    children: [
+      { path: '/payroll', label: 'Payruns' },
+      { path: '/payroll/structures', label: 'Salary Structures' },
+      { path: '/payroll/rules', label: 'Salary Rules' },
+    ],
+  },
+  {
+    path: '/dashboard',
+    label: 'Dashboard',
+    icon: LayoutDashboard,
+    roles: ['admin', 'hr_manager', 'hr_payroll_manager', 'hr_payroll_user'],
+    description: 'Company-wide KPIs, charts, and warnings at a glance.',
+  },
+];

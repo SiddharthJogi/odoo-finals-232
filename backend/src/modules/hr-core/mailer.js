@@ -15,6 +15,12 @@ const transporter = nodemailer.createTransport({
   },
 });
 
+if (isConfigured()) {
+  transporter.verify()
+    .then(() => console.log(`SMTP transporter verified (${config.smtp.host}:${config.smtp.port})`))
+    .catch((error) => console.warn(`SMTP transporter could not be verified — mail sends will likely fail: ${error.message}`));
+}
+
 async function sendWelcomeEmail({ email, name, temporaryPassword }) {
   const info = await transporter.sendMail({
     from: config.smtp.from,

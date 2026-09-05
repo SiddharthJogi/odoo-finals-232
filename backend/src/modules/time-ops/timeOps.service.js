@@ -4,8 +4,17 @@ const { ValidationError, NotFoundError } = require('../../shared/errors');
 
 function decorateAttendanceSchedule(att) {
   if (!att) return null;
+
+  // An employee with no assigned schedule has nothing to be compared against — don't
+  // silently borrow another schedule's hours (the old COALESCE(schedule_id, 1) fallback did).
+  if (!att.schedule_id) {
+    return { ...att, is_late: false, late_minutes: 0, overtime_hours: 0 };
+  }
+
   const checkInDate = att.check_in ? new Date(att.check_in) : null;
-  
+  const graceMinutes = att.grace_period_minutes ?? 15;
+  const overtimeBufferMinutes = att.overtime_buffer_minutes ?? 15;
+
   let isLate = false;
   let lateMinutes = 0;
   let overtimeHours = 0;
@@ -18,19 +27,28 @@ function decorateAttendanceSchedule(att) {
     const diffMs = checkInDate.getTime() - schedStart.getTime();
     const diffMins = Math.floor(diffMs / 60000);
 
-    if (diffMins >= 15) {
+    if (diffMins >= graceMinutes) {
       isLate = true;
       lateMinutes = diffMins;
     }
   }
 
-  if (att.check_out && att.scheduled_end) {
+  if (att.check_out && att.scheduled_end && att.scheduled_start) {
     const checkOutDate = new Date(att.check_out);
+    const [startH, startM] = att.scheduled_start.split(':').map(Number);
     const [endH, endM] = att.scheduled_end.split(':').map(Number);
-    const schedEnd = new Date(checkOutDate);
+    const schedEnd = new Date(checkInDate || checkOutDate);
     schedEnd.setHours(endH, endM, 0, 0);
 
-    if (checkOutDate > schedEnd) {
+    // Overnight/night shift: the shift's end time is numerically before its start time
+    // (e.g. 22:00 -> 06:00), so the scheduled end actually falls on the next calendar day.
+    const isOvernightShift = endH * 60 + endM <= startH * 60 + startM;
+    if (isOvernightShift) {
+      schedEnd.setDate(schedEnd.getDate() + 1);
+    }
+
+    const bufferedEnd = new Date(schedEnd.getTime() + overtimeBufferMinutes * 60000);
+    if (checkOutDate > bufferedEnd) {
       overtimeHours = Number(((checkOutDate.getTime() - schedEnd.getTime()) / 3600000).toFixed(2));
     }
   }
@@ -166,6 +184,9 @@ async function checkOut(employeeId) {
 }
 
 async function correctAttendance(id, data, correctedBy) {
+  if (data.check_in && data.check_out && new Date(data.check_out) <= new Date(data.check_in)) {
+    throw new ValidationError('Check-out must be after check-in');
+  }
   const updated = await repo.updateAttendance(id, data, correctedBy);
   if (!updated) throw new NotFoundError('Attendance', id);
   return updated;

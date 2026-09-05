@@ -38,7 +38,10 @@ export default function ContractHistory() {
     end_date: '',
     structure_id: '',
     status: 'active',
+    flexibility: 'flexible',
+    joining_bonus: '0',
   });
+  const [formError, setFormError] = useState('');
 
   useEffect(() => {
     const fetchAll = async () => {
@@ -65,6 +68,11 @@ export default function ContractHistory() {
 
   const handleCreateContract = async (e) => {
     e.preventDefault();
+    setFormError('');
+    if (form.end_date && form.end_date < form.start_date) {
+      setFormError('End date must be on or after the start date');
+      return;
+    }
     setSubmitting(true);
     try {
       const { data } = await client.post('/contracts', {
@@ -74,11 +82,13 @@ export default function ContractHistory() {
         end_date: form.end_date || null,
         structure_id: parseInt(form.structure_id, 10),
         status: form.status,
+        flexibility: form.flexibility,
+        joining_bonus: form.joining_bonus ? parseFloat(form.joining_bonus) : 0,
       });
       setContracts((prev) => [data, ...prev]);
       setShowForm(false);
       addToast('Contract created successfully', 'success');
-      setForm({ wage: '', start_date: '', end_date: '', structure_id: structures[0]?.id || '', status: 'active' });
+      setForm({ wage: '', start_date: '', end_date: '', structure_id: structures[0]?.id || '', status: 'active', flexibility: 'flexible', joining_bonus: '0' });
     } catch (err) {
       addToast(err.response?.data?.error || 'Failed to create contract', 'error');
     } finally {
@@ -164,6 +174,16 @@ export default function ContractHistory() {
                       <span className="flex items-center gap-1 text-[11px] text-emerald-700 font-semibold">
                         <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse inline-block" />
                         Current
+                      </span>
+                    )}
+                    {contract.flexibility === 'rigid' && (
+                      <span className="px-2 py-0.5 text-[11px] font-bold rounded-full border bg-slate-100 border-slate-300 text-slate-600">
+                        RIGID
+                      </span>
+                    )}
+                    {Number(contract.joining_bonus) > 0 && (
+                      <span className="px-2 py-0.5 text-[11px] font-bold rounded-full border bg-violet-50 border-violet-200 text-violet-700">
+                        +₹{Number(contract.joining_bonus).toLocaleString('en-IN')} bonus{contract.joining_bonus_payslip_id ? ' (paid)' : ''}
                       </span>
                     )}
                   </div>
@@ -278,7 +298,38 @@ export default function ContractHistory() {
                     <option value="expired">Expired</option>
                   </select>
                 </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-gray-700 mb-1">Flexibility</label>
+                  <select
+                    value={form.flexibility}
+                    onChange={(e) => setForm({ ...form, flexibility: e.target.value })}
+                    className="w-full text-sm bg-gray-50 border border-gray-300 rounded-lg px-3 py-2 text-gray-800 font-medium focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                  >
+                    <option value="flexible">Flexible</option>
+                    <option value="rigid">Rigid (locked after saving)</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-gray-700 mb-1">Joining Bonus (₹)</label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    value={form.joining_bonus}
+                    onChange={(e) => setForm({ ...form, joining_bonus: e.target.value })}
+                    placeholder="0"
+                    className="w-full text-sm bg-gray-50 border border-gray-300 rounded-lg px-3 py-2 text-gray-800 font-medium focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                  />
+                </div>
               </div>
+
+              {formError && (
+                <div className="bg-red-50 border border-red-200 rounded-lg p-3 text-xs text-red-700 font-medium">
+                  {formError}
+                </div>
+              )}
 
               <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 flex items-start gap-2">
                 <AlertTriangle className="w-4 h-4 text-amber-500 shrink-0 mt-0.5" />

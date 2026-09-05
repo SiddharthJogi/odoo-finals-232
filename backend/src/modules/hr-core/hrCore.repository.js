@@ -29,10 +29,19 @@ async function findUserByEmail(email) {
 
 async function findUserById(id) {
   const { rows } = await db.query(
-    `SELECT u.id, u.email, u.role_id, u.employee_id, u.is_active, u.created_at, r.name AS role
+    `SELECT u.id, u.email, u.role_id, u.employee_id, u.is_active, u.created_at, u.onboarding_seen_at, r.name AS role
      FROM users u JOIN roles r ON u.role_id = r.id
      WHERE u.id = $1`,
     [id]
+  );
+  return rows[0] || null;
+}
+
+async function updateUserOnboardingSeen(userId) {
+  const { rows } = await db.query(
+    `UPDATE users SET onboarding_seen_at = now() WHERE id = $1
+     RETURNING id, email, role_id, employee_id, is_active, onboarding_seen_at`,
+    [userId]
   );
   return rows[0] || null;
 }
@@ -129,31 +138,73 @@ async function insertDepartment({ name, parentId }) {
 }
 
 // ───────────── Employees ─────────────
-async function findAllEmployees(filters = {}) {
-  let sql = 'SELECT * FROM employees WHERE 1=1';
-  const params = [];
-  let idx = 1;
-
+function buildEmployeeFilterClause(filters, params, idx) {
+  let clause = '';
   if (filters.department_id) {
-    sql += ` AND department_id = $${idx++}`;
+    clause += ` AND e.department_id = $${idx++}`;
     params.push(filters.department_id);
   }
   if (filters.status) {
-    sql += ` AND status = $${idx++}`;
+    clause += ` AND e.status = $${idx++}`;
     params.push(filters.status);
   }
   if (filters.employee_type) {
-    sql += ` AND employee_type = $${idx++}`;
+    clause += ` AND e.employee_type = $${idx++}`;
     params.push(filters.employee_type);
   }
+  if (filters.search) {
+    clause += ` AND (e.name ILIKE $${idx} OR e.email ILIKE $${idx})`;
+    params.push(`%${filters.search}%`);
+    idx++;
+  }
+  return { clause, idx };
+}
 
-  sql += ' ORDER BY id';
-  const { rows } = await db.query(sql, params);
-  return rows;
+async function findAllEmployees(filters = {}) {
+  const params = [];
+  const { clause } = buildEmployeeFilterClause(filters, params, 1);
+
+  const countResult = await db.query(
+    `SELECT COUNT(*) FROM employees e WHERE 1=1${clause}`,
+    params
+  );
+  const total = parseInt(countResult.rows[0].count, 10);
+
+  let sql = `
+    SELECT e.*,
+      EXISTS (
+        SELECT 1 FROM attendances a
+        WHERE a.employee_id = e.id
+          AND a.check_in::date = CURRENT_DATE
+          AND (a.status = 'in_progress' OR a.status = 'done')
+      ) AS is_present
+    FROM employees e
+    WHERE 1=1${clause}
+    ORDER BY e.id
+  `;
+  const dataParams = [...params];
+  let idx = dataParams.length + 1;
+  if (filters.limit) {
+    sql += ` LIMIT $${idx++}`;
+    dataParams.push(filters.limit);
+  }
+  if (filters.offset) {
+    sql += ` OFFSET $${idx++}`;
+    dataParams.push(filters.offset);
+  }
+
+  const { rows } = await db.query(sql, dataParams);
+  return { rows, total };
 }
 
 async function findEmployeeById(id) {
-  const { rows } = await db.query('SELECT * FROM employees WHERE id = $1', [id]);
+  const { rows } = await db.query(
+    `SELECT e.*, d.name AS department_name
+     FROM employees e
+     LEFT JOIN departments d ON e.department_id = d.id
+     WHERE e.id = $1`,
+    [id]
+  );
   return rows[0] || null;
 }
 
@@ -265,17 +316,18 @@ async function findOverlappingActiveContracts(employeeId, startDate, endDate, ex
 
 async function insertContract(data) {
   const { rows } = await db.query(
-    `INSERT INTO contracts (employee_id, department_id, job_position, wage, start_date, end_date, structure_id, schedule_id, status)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+    `INSERT INTO contracts (employee_id, department_id, job_position, wage, start_date, end_date, structure_id, schedule_id, status, flexibility, joining_bonus)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
      RETURNING *`,
     [data.employee_id, data.department_id || null, data.job_position || null,
      data.wage, data.start_date, data.end_date || null, data.structure_id,
-     data.schedule_id || null, data.status]
+     data.schedule_id || null, data.status, data.flexibility || 'flexible', data.joining_bonus || 0]
   );
   return rows[0];
 }
 
-async function updateContract(id, data) {
+async function updateContract(id, data, client) {
+  const queryFn = client || db;
   const fields = [];
   const params = [];
 
@@ -286,7 +338,7 @@ async function updateContract(id, data) {
   if (fields.length === 0) return findContractById(id);
 
   params.push(id);
-  const { rows } = await db.query(
+  const { rows } = await queryFn.query(
     `UPDATE contracts SET ${fields.join(', ')} WHERE id = $${params.length} RETURNING *`,
     params
   );
@@ -304,11 +356,11 @@ async function findScheduleById(id) {
   return rows[0] || null;
 }
 
-async function insertSchedule({ name, calendarType }) {
+async function insertSchedule({ name, calendarType, gracePeriodMinutes, overtimeBufferMinutes, targetWeeklyHours }) {
   const { rows } = await db.query(
-    `INSERT INTO working_schedules (name, calendar_type)
-     VALUES ($1, $2) RETURNING *`,
-    [name, calendarType]
+    `INSERT INTO working_schedules (name, calendar_type, grace_period_minutes, overtime_buffer_minutes, target_weekly_hours)
+     VALUES ($1, $2, $3, $4, $5) RETURNING *`,
+    [name, calendarType, gracePeriodMinutes ?? 15, overtimeBufferMinutes ?? 15, targetWeeklyHours || null]
   );
   return rows[0];
 }
@@ -330,16 +382,20 @@ async function insertScheduleLine({ scheduleId, dayOfWeek, startTime, endTime, b
   return rows[0];
 }
 
-async function updateSchedule(id, { name, calendarType, lines }) {
+async function updateSchedule(id, { name, calendarType, lines, gracePeriodMinutes, overtimeBufferMinutes, targetWeeklyHours }) {
   const client = await db.getClient();
   try {
     await client.query('BEGIN');
     const { rows } = await client.query(
       `UPDATE working_schedules
-       SET name = COALESCE($1, name), calendar_type = COALESCE($2, calendar_type)
-       WHERE id = $3 AND status = 'active'
+       SET name = COALESCE($1, name),
+           calendar_type = COALESCE($2, calendar_type),
+           grace_period_minutes = COALESCE($3, grace_period_minutes),
+           overtime_buffer_minutes = COALESCE($4, overtime_buffer_minutes),
+           target_weekly_hours = COALESCE($5, target_weekly_hours)
+       WHERE id = $6 AND status = 'active'
        RETURNING *`,
-      [name || null, calendarType || null, id]
+      [name || null, calendarType || null, gracePeriodMinutes ?? null, overtimeBufferMinutes ?? null, targetWeeklyHours || null, id]
     );
     if (!rows[0]) {
       await client.query('ROLLBACK');
@@ -373,6 +429,68 @@ async function archiveSchedule(id) {
      WHERE id = $1 AND status = 'active'
      RETURNING *`,
     [id]
+  );
+  return rows[0] || null;
+}
+
+// ───────────── Department Change Requests ─────────────
+async function insertDepartmentChangeRequest({ employeeId, currentDepartmentId, requestedDepartmentId, requestedBy }) {
+  const { rows } = await db.query(
+    `INSERT INTO department_change_requests (employee_id, current_department_id, requested_department_id, requested_by)
+     VALUES ($1, $2, $3, $4) RETURNING *`,
+    [employeeId, currentDepartmentId || null, requestedDepartmentId, requestedBy]
+  );
+  return rows[0];
+}
+
+async function findDepartmentChangeRequests({ status, employeeId } = {}) {
+  let sql = `
+    SELECT r.*, e.name AS employee_name,
+      cd.name AS current_department_name, rd.name AS requested_department_name,
+      ru.email AS requested_by_email
+    FROM department_change_requests r
+    JOIN employees e ON r.employee_id = e.id
+    LEFT JOIN departments cd ON r.current_department_id = cd.id
+    JOIN departments rd ON r.requested_department_id = rd.id
+    JOIN users ru ON r.requested_by = ru.id
+    WHERE 1=1
+  `;
+  const params = [];
+  if (status) {
+    params.push(status);
+    sql += ` AND r.status = $${params.length}`;
+  }
+  if (employeeId) {
+    params.push(employeeId);
+    sql += ` AND r.employee_id = $${params.length}`;
+  }
+  sql += ' ORDER BY r.created_at DESC';
+  const { rows } = await db.query(sql, params);
+  return rows;
+}
+
+async function findDepartmentChangeRequestById(id) {
+  const { rows } = await db.query('SELECT * FROM department_change_requests WHERE id = $1', [id]);
+  return rows[0] || null;
+}
+
+async function reviewDepartmentChangeRequest(id, status, reviewedBy, note, client) {
+  const queryFn = client || db;
+  const { rows } = await queryFn.query(
+    `UPDATE department_change_requests
+     SET status = $1, reviewed_by = $2, reviewed_at = now(), note = $3
+     WHERE id = $4 AND status = 'draft'
+     RETURNING *`,
+    [status, reviewedBy, note || null, id]
+  );
+  return rows[0] || null;
+}
+
+async function applyEmployeeDepartment(employeeId, departmentId, client) {
+  const queryFn = client || db;
+  const { rows } = await queryFn.query(
+    'UPDATE employees SET department_id = $1 WHERE id = $2 RETURNING *',
+    [departmentId, employeeId]
   );
   return rows[0] || null;
 }
@@ -412,4 +530,10 @@ module.exports = {
   insertScheduleLine,
   updateSchedule,
   archiveSchedule,
+  insertDepartmentChangeRequest,
+  findDepartmentChangeRequests,
+  findDepartmentChangeRequestById,
+  reviewDepartmentChangeRequest,
+  applyEmployeeDepartment,
+  updateUserOnboardingSeen,
 };

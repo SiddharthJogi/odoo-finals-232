@@ -63,7 +63,7 @@ export default function AttendanceList() {
         client.get('/attendance', { params: { date_from: todayString, date_to: tomorrowString } }),
         client.get('/attendance', { params: { date_from: monthStart, date_to: tomorrowString } }),
         client.get('/time-off/requests'),
-        role === 'employee' ? Promise.resolve({ data: [] }) : client.get('/employees'),
+        role === 'employee' ? Promise.resolve({ data: { total: 1 } }) : client.get('/employees', { params: { limit: 1 } }),
       ]);
       setAttendances(tableRes.data);
       setTodayAttendances(todayRes.data);
@@ -71,7 +71,7 @@ export default function AttendanceList() {
       setApprovedLeaveToday(new Set(leaveRes.data.filter((request) => (
         request.status === 'approved' && request.start_date <= todayString && request.end_date >= todayString
       )).map((request) => request.employee_id)).size);
-      setEmployeeCount(role === 'employee' ? 1 : employeeRes.data.length);
+      setEmployeeCount(role === 'employee' ? 1 : employeeRes.data.total);
     } catch (err) {
       console.error('Failed to fetch attendances', err);
     } finally {

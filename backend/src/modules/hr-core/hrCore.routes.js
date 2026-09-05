@@ -11,6 +11,7 @@ router.post('/auth/login', ctrl.login);
 // ───────────── Users (admin only, except /me) ─────────────
 router.get('/users/me', authenticate, ctrl.getMe);
 router.patch('/users/me/password', authenticate, ctrl.changePassword);
+router.patch('/users/me/onboarding-seen', authenticate, ctrl.markOnboardingSeen);
 router.get('/users', authenticate, requireRole('admin'), ctrl.listUsers);
 router.post('/users', authenticate, requireRole('admin'), ctrl.createUser);
 router.patch('/users/:id/role', authenticate, requireRole('admin'), ctrl.updateUserRole);
@@ -28,6 +29,12 @@ router.get('/employees/:id', authenticate, ctrl.getEmployee);
 router.post('/employees', authenticate, requireRole('admin', 'hr_manager'), ctrl.createEmployee);
 router.post('/employees/provision', authenticate, requireRole('admin', 'hr_manager'), ctrl.provisionEmployee);
 router.put('/employees/:id', authenticate, requireRole('admin', 'hr_manager'), ctrl.updateEmployee);
+
+// ───────────── Department Change Requests ─────────────
+router.post('/employees/:id/department-requests', authenticate, requireRole('admin', 'hr_manager'), ctrl.requestDepartmentChange);
+router.get('/department-requests', authenticate, requireRole('admin', 'hr_manager'), ctrl.listDepartmentChangeRequests);
+router.patch('/department-requests/:id/approve', authenticate, requireRole('admin'), ctrl.approveDepartmentChangeRequest);
+router.patch('/department-requests/:id/reject', authenticate, requireRole('admin'), ctrl.rejectDepartmentChangeRequest);
 
 // ───────────── Contracts ─────────────
 router.get('/contracts', authenticate, requireRole('admin', 'hr_manager', 'hr_payroll_manager', 'hr_payroll_user'), ctrl.listAllContracts);

@@ -1,8 +1,10 @@
-import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
+import { Users, Plus, LayoutGrid, FileText, ChevronLeft, ChevronRight } from 'lucide-react';
 import client from '../../api/client';
-import { useToast } from '../../components/Toast';
-import { Users, Search, Filter, Plus, LayoutGrid, List, FileText } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { useEmployeeSearch } from './useEmployeeSearch';
+import EmployeeFilterBar from './EmployeeFilterBar';
+import PresenceBadge from './PresenceBadge';
 
 function SkeletonRow() {
   return (
@@ -13,41 +15,24 @@ function SkeletonRow() {
       <td className="px-6 py-4"><div className="h-4 bg-gray-100 rounded w-20" /></td>
       <td className="px-6 py-4"><div className="h-5 bg-gray-100 rounded-full w-16" /></td>
       <td className="px-6 py-4"><div className="h-4 bg-gray-100 rounded-full w-14" /></td>
+      <td className="px-6 py-4"><div className="h-4 bg-gray-100 rounded-full w-14" /></td>
       <td className="px-6 py-4"><div className="h-4 bg-gray-100 rounded w-28" /></td>
     </tr>
   );
 }
 
 export default function EmployeeList() {
-  const [employees, setEmployees] = useState([]);
   const [departments, setDepartments] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [search, setSearch] = useState('');
-  const [deptFilter, setDeptFilter] = useState('');
-  const [typeFilter, setTypeFilter] = useState('');
-  const [statusFilter, setStatusFilter] = useState('active');
-  const { addToast } = useToast();
+  const {
+    employees, total, page, setPage, loading,
+    search, setSearch, deptFilter, setDeptFilter,
+    typeFilter, setTypeFilter, statusFilter, setStatusFilter,
+    clearFilters, hasActiveFilters,
+  } = useEmployeeSearch({ limit: 20 });
 
   useEffect(() => {
-    Promise.all([
-      client.get('/employees'),
-      client.get('/departments'),
-    ])
-      .then(([empRes, deptRes]) => {
-        setEmployees(empRes.data);
-        setDepartments(deptRes.data);
-      })
-      .catch(() => addToast('Failed to load employees', 'error'))
-      .finally(() => setLoading(false));
+    client.get('/departments').then(({ data }) => setDepartments(data)).catch(console.error);
   }, []);
-
-  const filtered = employees.filter((emp) => {
-    if (search && !emp.name.toLowerCase().includes(search.toLowerCase()) && !emp.email?.toLowerCase().includes(search.toLowerCase())) return false;
-    if (deptFilter && String(emp.department_id) !== deptFilter) return false;
-    if (typeFilter && emp.employee_type !== typeFilter) return false;
-    if (statusFilter && emp.status !== statusFilter) return false;
-    return true;
-  });
 
   const TYPE_LABELS = { full_time: 'Full Time', part_time: 'Part Time', contract: 'Contract' };
   const TYPE_STYLES = {
@@ -55,6 +40,8 @@ export default function EmployeeList() {
     part_time: 'bg-amber-50 text-amber-700 border border-amber-200',
     contract: 'bg-purple-50 text-purple-700 border border-purple-200',
   };
+
+  const totalPages = Math.max(1, Math.ceil(total / 20));
 
   return (
     <div>
@@ -66,7 +53,7 @@ export default function EmployeeList() {
             Employees
           </h1>
           <p className="text-xs text-gray-500 mt-1">
-            {loading ? '...' : `${filtered.length} of ${employees.length} employees shown`}
+            {loading ? '...' : `${total} employee${total !== 1 ? 's' : ''} found`}
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -87,65 +74,15 @@ export default function EmployeeList() {
         </div>
       </div>
 
-      {/* Filters */}
-      <div className="flex flex-wrap items-center gap-3 bg-white border border-gray-200 rounded-xl shadow-sm p-3 mb-5">
-        <div className="flex items-center gap-1.5 text-xs text-gray-500 font-semibold px-1">
-          <Filter className="w-3.5 h-3.5 text-gray-400" />
-          Filter:
-        </div>
-
-        <div className="relative flex-1 min-w-[180px]">
-          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400" />
-          <input
-            type="text"
-            placeholder="Search by name or email..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="w-full text-xs bg-gray-50 border border-gray-200 rounded-lg pl-8 pr-3 py-1.5 text-gray-700 focus:ring-2 focus:ring-blue-500 focus:outline-none"
-          />
-        </div>
-
-        <select
-          value={deptFilter}
-          onChange={(e) => setDeptFilter(e.target.value)}
-          className="text-xs bg-gray-50 border border-gray-200 rounded-lg px-2.5 py-1.5 text-gray-700 focus:ring-2 focus:ring-blue-500 focus:outline-none"
-        >
-          <option value="">All Departments</option>
-          {departments.map((d) => (
-            <option key={d.id} value={d.id}>{d.name}</option>
-          ))}
-        </select>
-
-        <select
-          value={typeFilter}
-          onChange={(e) => setTypeFilter(e.target.value)}
-          className="text-xs bg-gray-50 border border-gray-200 rounded-lg px-2.5 py-1.5 text-gray-700 focus:ring-2 focus:ring-blue-500 focus:outline-none"
-        >
-          <option value="">All Types</option>
-          <option value="full_time">Full Time</option>
-          <option value="part_time">Part Time</option>
-          <option value="contract">Contract</option>
-        </select>
-
-        <select
-          value={statusFilter}
-          onChange={(e) => setStatusFilter(e.target.value)}
-          className="text-xs bg-gray-50 border border-gray-200 rounded-lg px-2.5 py-1.5 text-gray-700 focus:ring-2 focus:ring-blue-500 focus:outline-none"
-        >
-          <option value="">All Statuses</option>
-          <option value="active">Active</option>
-          <option value="archived">Archived</option>
-        </select>
-
-        {(search || deptFilter || typeFilter || statusFilter !== 'active') && (
-          <button
-            onClick={() => { setSearch(''); setDeptFilter(''); setTypeFilter(''); setStatusFilter('active'); }}
-            className="text-xs font-semibold text-blue-600 hover:text-blue-800 transition px-2 py-1 hover:bg-blue-50 rounded-lg"
-          >
-            Clear
-          </button>
-        )}
-      </div>
+      <EmployeeFilterBar
+        search={search} setSearch={setSearch}
+        deptFilter={deptFilter} setDeptFilter={setDeptFilter}
+        typeFilter={typeFilter} setTypeFilter={setTypeFilter}
+        statusFilter={statusFilter} setStatusFilter={setStatusFilter}
+        departments={departments}
+        hasActiveFilters={hasActiveFilters}
+        clearFilters={clearFilters}
+      />
 
       {/* Table */}
       <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
@@ -158,13 +95,14 @@ export default function EmployeeList() {
               <th className="px-6 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Position</th>
               <th className="px-6 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Type</th>
               <th className="px-6 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Status</th>
+              <th className="px-6 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Today</th>
               <th className="px-6 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Actions</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-200">
             {loading
               ? [...Array(6)].map((_, i) => <SkeletonRow key={i} />)
-              : filtered.map((emp) => (
+              : employees.map((emp) => (
                 <tr key={emp.id} className="hover:bg-gray-50 transition">
                   <td className="px-6 py-4">
                     <Link
@@ -195,6 +133,9 @@ export default function EmployeeList() {
                     </span>
                   </td>
                   <td className="px-6 py-4">
+                    <PresenceBadge isPresent={emp.is_present} />
+                  </td>
+                  <td className="px-6 py-4">
                     <div className="flex items-center gap-2">
                       <Link
                         to={`/employees/${emp.id}`}
@@ -216,11 +157,37 @@ export default function EmployeeList() {
           </tbody>
         </table>
 
-        {!loading && filtered.length === 0 && (
+        {!loading && employees.length === 0 && (
           <div className="py-16 text-center">
             <Users className="w-12 h-12 text-gray-200 mx-auto mb-3" />
             <p className="text-sm font-semibold text-gray-500">No employees match your filters</p>
             <p className="text-xs text-gray-400 mt-1">Try adjusting the search or filter criteria above</p>
+          </div>
+        )}
+
+        {!loading && total > 0 && (
+          <div className="flex items-center justify-between px-6 py-3 border-t border-gray-200 bg-gray-50">
+            <p className="text-xs text-gray-500">
+              Page {page} of {totalPages}
+            </p>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setPage((p) => Math.max(1, p - 1))}
+                disabled={page <= 1}
+                className="flex items-center gap-1 text-xs font-semibold text-gray-600 bg-white border border-gray-300 rounded-lg px-2.5 py-1.5 disabled:opacity-40 disabled:cursor-not-allowed hover:bg-gray-100 transition"
+              >
+                <ChevronLeft className="w-3.5 h-3.5" />
+                Prev
+              </button>
+              <button
+                onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                disabled={page >= totalPages}
+                className="flex items-center gap-1 text-xs font-semibold text-gray-600 bg-white border border-gray-300 rounded-lg px-2.5 py-1.5 disabled:opacity-40 disabled:cursor-not-allowed hover:bg-gray-100 transition"
+              >
+                Next
+                <ChevronRight className="w-3.5 h-3.5" />
+              </button>
+            </div>
           </div>
         )}
       </div>
