@@ -60,7 +60,6 @@ export default function PayslipView() {
         <button onClick={() => navigate('/payroll')} className="mt-4 text-blue-600 text-sm underline">
           Back to Payruns
         </button>
-      </div>
     );
   }
 
@@ -93,15 +92,13 @@ export default function PayslipView() {
             <Sparkles className="w-4 h-4" />
             {showExplanation ? 'Hide Explanation' : 'Explain This'}
           </button>
-          <a
-            href={`/api/payroll/payslips/${id}/pdf`}
-            target="_blank"
-            rel="noreferrer"
+          <button
+            onClick={handleDownloadPDF}
             className="flex items-center gap-1.5 px-4 py-2 text-xs font-bold bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition shadow-md"
           >
             <Download className="w-4 h-4" />
             Download PDF
-          </a>
+          </button>
         </div>
       </div>
 

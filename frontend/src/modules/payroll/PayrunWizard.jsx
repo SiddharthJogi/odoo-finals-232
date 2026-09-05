@@ -149,7 +149,23 @@ export default function PayrunWizard() {
       setActionSuccessMsg(msg);
       addToast(msg, 'success');
     } catch (err) {
-      addToast(err.response?.data?.error || 'Failed to send payslips via email', 'error');
+      addToast(err.response?.data?.error || 'Failed to dispatch payslips', 'error');
+    }
+  };
+
+  const handleDownloadPDF = async (payslipId) => {
+    try {
+      const response = await client.get(`/payroll/payslips/${payslipId}/pdf`, { responseType: 'blob' });
+      const url = window.URL.createObjectURL(new Blob([response.data]));
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', `payslip_${payslipId}.pdf`);
+      document.body.appendChild(link);
+      link.click();
+      link.parentNode.removeChild(link);
+    } catch (err) {
+      console.error('Error downloading PDF:', err);
+      addToast('Failed to download PDF', 'error');
     }
   };
 
@@ -355,14 +371,12 @@ export default function PayrunWizard() {
                                 >
                                   Details
                                 </Link>
-                                <a
-                                  href={`/api/payroll/payslips/${ps.id}/pdf`}
-                                  target="_blank"
-                                  rel="noreferrer"
+                                <button
+                                  onClick={() => handleDownloadPDF(ps.id)}
                                   className="text-emerald-600 hover:text-emerald-800 font-bold inline-flex items-center gap-0.5"
                                 >
                                   <FileText className="w-3 h-3" /> PDF
-                                </a>
+                                </button>
                               </td>
                             </tr>
                           ))}

@@ -256,7 +256,7 @@ function NavBar() {
 
   return (
     <nav className="w-full bg-background/80 backdrop-blur-lg border-b border-border shadow-sm sticky top-0 z-40">
-      <div className="w-full px-0">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex justify-between items-center h-[64px]">
           {/* Logo */}
           <Link to="/" className="flex items-center gap-1 shrink-0 group">
@@ -271,7 +271,7 @@ function NavBar() {
           </Link>
 
           {/* Desktop Nav */}
-          <div className="hidden md:flex items-center gap-1 flex-1 ml-8">
+          <div className="hidden md:flex items-center gap-4 flex-1 ml-8">
             {visibleItems.map((item) => {
               const isActive = location.pathname.startsWith(item.path);
               return <DropdownMenu key={item.path} item={item} isActive={isActive} />;

@@ -53,6 +53,12 @@ async function createStructure(data) {
   return repo.insertStructure(data);
 }
 
+async function updateStructure(id, data) {
+  const structure = await getStructure(id);
+  if (!structure) throw new NotFoundError('Salary Structure', id);
+  return repo.updateStructure(id, data);
+}
+
 // ───────────── Salary Rules ─────────────
 async function listRulesByStructure(structureId) {
   return repo.findRulesByStructure(structureId);
@@ -394,6 +400,7 @@ module.exports = {
   listStructures,
   getStructure,
   createStructure,
+  updateStructure,
   listRulesByStructure,
   createRule,
   updateRule,
