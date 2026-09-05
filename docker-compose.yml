@@ -1,5 +1,3 @@
-version: '3.9'
-
 services:
   db:
     image: postgres:16-alpine
@@ -17,6 +15,52 @@ services:
       interval: 5s
       timeout: 3s
       retries: 5
+
+  ai-service:
+    build:
+      context: ./ai-service
+    ports:
+      - '8001:8001'
+    volumes:
+      - ./ai-service:/app
+    environment:
+      - PYTHONUNBUFFERED=1
+    restart: unless-stopped
+
+  backend:
+    build:
+      context: ./backend
+    ports:
+      - '4000:4000'
+    volumes:
+      - ./backend:/app
+      - /app/node_modules
+    environment:
+      - DATABASE_URL=postgresql://postgres:postgres@db:5432/peoplepay360
+      - JWT_SECRET=change_me_before_demo
+      - PORT=4000
+      - AI_SERVICE_URL=http://ai-service:8001
+      - GEMINI_API_KEY=${GEMINI_API_KEY}
+    depends_on:
+      db:
+        condition: service_healthy
+      ai-service:
+        condition: service_started
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: ./frontend
+    ports:
+      - '5173:5173'
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+    environment:
+      - VITE_API_URL=http://localhost:4000/api
+    depends_on:
+      - backend
+    restart: unless-stopped
 
 volumes:
   pgdata:
