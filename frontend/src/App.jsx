@@ -426,6 +426,7 @@ export default function App() {
 
             <Route path="/contracts" element={<RoleRoute roles={ROLES.hrAndPayroll}><AnimatedRoute><ContractList /></AnimatedRoute></RoleRoute>} />
             <Route path="/contracts/new" element={<RoleRoute roles={ROLES.hr}><AnimatedRoute><ContractForm /></AnimatedRoute></RoleRoute>} />
+            <Route path="/contracts/:id" element={<RoleRoute roles={ROLES.hr}><AnimatedRoute><ContractForm /></AnimatedRoute></RoleRoute>} />
 
             <Route path="/schedules" element={<RoleRoute roles={ROLES.hrAndPayroll}><AnimatedRoute><ScheduleList /></AnimatedRoute></RoleRoute>} />
             <Route path="/schedules/new" element={<RoleRoute roles={ROLES.hr}><AnimatedRoute><ScheduleForm /></AnimatedRoute></RoleRoute>} />
