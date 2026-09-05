@@ -25,6 +25,7 @@ services:
       - ./ai-service:/app
     environment:
       - PYTHONUNBUFFERED=1
+      - API_BASE_URL=http://backend:4000/api
     restart: unless-stopped
 
   backend:
