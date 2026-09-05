@@ -5,6 +5,11 @@ const createStructureSchema = z.object({
   status: z.enum(['active', 'inactive']).default('active'),
 });
 
+const updateStructureSchema = z.object({
+  name: z.string().min(1).max(120).optional(),
+  status: z.enum(['active', 'inactive']).optional(),
+});
+
 const createRuleSchema = z.object({
   structure_id: z.number().int().positive(),
   name: z.string().min(1).max(120),
@@ -35,6 +40,7 @@ const createPayrunSchema = z.object({
 
 module.exports = {
   createStructureSchema,
+  updateStructureSchema,
   createRuleSchema,
   createPayrunDraftSchema,
   createPayrunSchema,

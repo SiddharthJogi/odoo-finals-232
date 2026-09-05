@@ -2,6 +2,7 @@ const { asyncHandler } = require('../../shared/asyncHandler');
 const service = require('./payroll.service');
 const {
   createStructureSchema,
+  updateStructureSchema,
   createRuleSchema,
   createPayrunDraftSchema,
   createPayrunSchema,
@@ -22,6 +23,12 @@ const createStructure = asyncHandler(async (req, res) => {
   const data = createStructureSchema.parse(req.body);
   const structure = await service.createStructure(data);
   res.status(201).json(structure);
+});
+
+const updateStructure = asyncHandler(async (req, res) => {
+  const data = updateStructureSchema.parse(req.body);
+  const structure = await service.updateStructure(parseInt(req.params.id, 10), data);
+  res.json(structure);
 });
 
 // ───────────── Rules ─────────────
@@ -129,6 +136,7 @@ module.exports = {
   listStructures,
   getStructure,
   createStructure,
+  updateStructure,
   listRules,
   createRule,
   updateRule,

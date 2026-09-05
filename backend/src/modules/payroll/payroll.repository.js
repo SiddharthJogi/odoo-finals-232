@@ -19,6 +19,23 @@ async function insertStructure({ name, status }) {
   return rows[0];
 }
 
+async function updateStructure(id, { name, status }) {
+  const fields = [];
+  const values = [];
+  let paramIdx = 1;
+  if (name !== undefined) { fields.push(`name = $${paramIdx++}`); values.push(name); }
+  if (status !== undefined) { fields.push(`status = $${paramIdx++}`); values.push(status); }
+
+  if (fields.length === 0) return findStructureById(id);
+
+  values.push(id);
+  const { rows } = await db.query(
+    `UPDATE salary_structures SET ${fields.join(', ')} WHERE id = $${paramIdx} RETURNING *`,
+    values
+  );
+  return rows[0];
+}
+
 // ───────────── Salary Rules ─────────────
 async function findRulesByStructure(structureId) {
   const { rows } = await db.query(
@@ -264,6 +281,7 @@ module.exports = {
   findAllStructures,
   findStructureById,
   insertStructure,
+  updateStructure,
   findRulesByStructure,
   findRuleById,
   insertRule,

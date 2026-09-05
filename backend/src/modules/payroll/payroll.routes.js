@@ -9,6 +9,7 @@ const router = Router();
 router.get('/structures', authenticate, requireRole('admin', 'hr_payroll_manager', 'hr_payroll_user', 'hr_manager'), ctrl.listStructures);
 router.get('/structures/:id', authenticate, requireRole('admin', 'hr_payroll_manager', 'hr_payroll_user', 'hr_manager'), ctrl.getStructure);
 router.post('/structures', authenticate, requireRole('admin', 'hr_payroll_manager'), ctrl.createStructure);
+router.put('/structures/:id', authenticate, requireRole('admin', 'hr_payroll_manager'), ctrl.updateStructure);
 
 // ───────────── Rules ─────────────
 router.get('/rules', authenticate, requireRole('admin', 'hr_payroll_manager', 'hr_payroll_user', 'hr_manager'), ctrl.listRules);
