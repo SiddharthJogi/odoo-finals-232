@@ -23,7 +23,7 @@ const { NotFoundError, ValidationError } = require('../../../shared/errors');
 describe('payroll.service - Payrun Transitions', () => {
   beforeEach(() => {
     jest.clearAllMocks();
-    
+
     // Mock db client
     const mockClient = {
       query: jest.fn().mockResolvedValue({}),
@@ -109,7 +109,7 @@ describe('payroll.service - Payrun Transitions', () => {
 
     await expect(service.transitionPayrun(1, 'validated')).rejects.toThrow(ValidationError);
     await expect(service.transitionPayrun(1, 'validated')).rejects.toThrow("Cannot transition payrun from 'draft' to 'validated'");
-    
+
     expect(repo.updatePayrunStatus).not.toHaveBeenCalled();
   });
 
@@ -117,5 +117,39 @@ describe('payroll.service - Payrun Transitions', () => {
     repo.findPayrunById.mockResolvedValue(null);
 
     await expect(service.transitionPayrun(999, 'computed')).rejects.toThrow(NotFoundError);
+  });
+});
+
+describe('payroll.service - Payslip Explanation', () => {
+  it('should summarize stored payslip totals and compliance status', async () => {
+    repo.findPayslipById.mockResolvedValue({
+      id: 7,
+      employee_name: 'Asha Patel',
+      worked_days: 26,
+      gross_total: '50000.00',
+      net_total: '46000.00',
+      has_warning: true,
+      warning_reason: 'Missing bank account information',
+    });
+    repo.findPayslipLines.mockResolvedValue([
+      { category: 'earning', value: '50000.00' },
+      { category: 'deduction', value: '4000.00' },
+    ]);
+
+    await expect(service.explainPayslip(7)).resolves.toEqual({
+      payslip_id: 7,
+      employee_name: 'Asha Patel',
+      worked_days: 26,
+      earnings_count: 1,
+      deductions_count: 1,
+      gross_total: 50000,
+      deduction_total: 4000,
+      net_total: 46000,
+      compliance: {
+        has_warning: true,
+        warning_reason: 'Missing bank account information',
+        message: 'Action needed: Missing bank account information',
+      },
+    });
   });
 });

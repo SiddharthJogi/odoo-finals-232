@@ -103,6 +103,11 @@ const getPayslip = asyncHandler(async (req, res) => {
   res.json(payslip);
 });
 
+const explainPayslip = asyncHandler(async (req, res) => {
+  const explanation = await service.explainPayslip(parseInt(req.params.id, 10));
+  res.json(explanation);
+});
+
 const getPayslipPdf = asyncHandler(async (req, res) => {
   const payslip = await service.getPayslipWithLines(parseInt(req.params.id, 10));
   res.setHeader('Content-Type', 'application/pdf');
@@ -118,7 +123,7 @@ const getPayslipPdf = asyncHandler(async (req, res) => {
     .text('123 Business Avenue, Suite 100', { align: 'left' })
     .text('City, State, 12345', { align: 'left' })
     .text('info@peoplepay360.com', { align: 'left' });
-  
+
   doc.moveUp(4);
   doc.fontSize(20).fillColor('black').text('PAYSLIP', { align: 'right' });
   doc.fontSize(10).fillColor('gray').text(`ID: #${String(payslip.id).padStart(6, '0')}`, { align: 'right' });
@@ -138,23 +143,23 @@ const getPayslipPdf = asyncHandler(async (req, res) => {
 
   // --- Breakdown Table ---
   const tableTop = 250;
-  
+
   // Table Header
   doc.rect(50, tableTop, 495, 20).fillAndStroke('#374151', '#374151');
   doc.fillColor('white').font('Helvetica-Bold').fontSize(10)
     .text('Description', 60, tableTop + 5)
     .text('Category', 250, tableTop + 5)
     .text('Amount', 400, tableTop + 5, { align: 'right', width: 130 });
-  
+
   // Table Rows
   let y = tableTop + 25;
   doc.fillColor('black').font('Helvetica');
-  
+
   for (const line of payslip.lines || []) {
     doc.text(line.label, 60, y)
-       .text(line.category, 250, y)
-       .text(Number(line.value).toFixed(2), 400, y, { align: 'right', width: 130 });
-    
+      .text(line.category, 250, y)
+      .text(Number(line.value).toFixed(2), 400, y, { align: 'right', width: 130 });
+
     // Draw row bottom border
     doc.moveTo(50, y + 15).lineTo(545, y + 15).lineWidth(0.5).stroke('#e5e7eb');
     y += 20;
@@ -164,17 +169,17 @@ const getPayslipPdf = asyncHandler(async (req, res) => {
   doc.moveDown(2);
   const totalsTop = y + 20;
   doc.rect(350, totalsTop, 195, 65).fillAndStroke('#f9fafb', '#e5e7eb');
-  
+
   doc.font('Helvetica').fontSize(10)
     .text('Gross Total:', 365, totalsTop + 10)
     .text('Deductions:', 365, totalsTop + 25);
-  
+
   doc.font('Helvetica-Bold')
     .text(Number(payslip.gross_total).toFixed(2), 450, totalsTop + 10, { align: 'right', width: 80 })
     .text(Number(payslip.gross_total - payslip.net_total).toFixed(2), 450, totalsTop + 25, { align: 'right', width: 80 });
 
   doc.moveTo(350, totalsTop + 40).lineTo(545, totalsTop + 40).lineWidth(1).stroke('#e5e7eb');
-  
+
   doc.fontSize(12).text('Net Salary:', 365, totalsTop + 48);
   doc.text(Number(payslip.net_total).toFixed(2), 450, totalsTop + 48, { align: 'right', width: 80 });
 
@@ -216,6 +221,7 @@ module.exports = {
   validatePayrun,
   markPaid,
   getPayslip,
+  explainPayslip,
   getPayslipPdf,
   sendPayslips,
 };
