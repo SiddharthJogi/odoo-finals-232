@@ -239,11 +239,11 @@ function NavBar() {
   };
 
   return (
-    <nav className="bg-background/80 backdrop-blur-lg border-b border-border shadow-sm sticky top-0 z-40">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+    <nav className="w-full bg-background/80 backdrop-blur-lg border-b border-border shadow-sm sticky top-0 z-40">
+      <div className="w-full px-0">
         <div className="flex justify-between items-center h-[64px]">
           {/* Logo */}
-          <Link to="/" className="flex items-center gap-2.5 shrink-0 group">
+          <Link to="/" className="flex items-center gap-1 shrink-0 group">
             <img
               src={logo}
               alt="PeoplePay360 logo"
@@ -335,8 +335,8 @@ function NavBar() {
                     to={child.path}
                     onClick={() => setMobileOpen(false)}
                     className={`block px-6 py-2 text-sm rounded-lg transition ${location.pathname === child.path
-                        ? 'bg-white/10 text-white font-semibold'
-                        : 'text-slate-400 hover:text-white hover:bg-white/5'
+                      ? 'bg-white/10 text-white font-semibold'
+                      : 'text-slate-400 hover:text-white hover:bg-white/5'
                       }`}
                   >
                     {child.label}
