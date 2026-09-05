@@ -139,7 +139,7 @@ async function findAllocations(filters = {}) {
 }
 
 async function findAllocationForDeduction(employeeId, typeId) {
-  const { rows } = await db.query(
+  let { rows } = await db.query(
     `SELECT * FROM allocations
      WHERE employee_id = $1 AND type_id = $2 AND status = 'approved'
        AND valid_from <= CURRENT_DATE
@@ -147,6 +147,15 @@ async function findAllocationForDeduction(employeeId, typeId) {
      ORDER BY valid_from DESC LIMIT 1`,
     [employeeId, typeId]
   );
+  if (rows.length === 0) {
+    const fallback = await db.query(
+      `SELECT * FROM allocations
+       WHERE employee_id = $1 AND type_id = $2 AND status = 'approved'
+       ORDER BY valid_from DESC, id DESC LIMIT 1`,
+      [employeeId, typeId]
+    );
+    rows = fallback.rows;
+  }
   return rows[0] || null;
 }
 
