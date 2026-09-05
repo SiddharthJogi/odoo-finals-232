@@ -12,7 +12,9 @@ export default function Requests() {
   const [showModal, setShowModal] = useState(false);
   const [types, setTypes] = useState([]);
   const [allocations, setAllocations] = useState([]);
+  const [responsibleUsers, setResponsibleUsers] = useState([]);
   const [selectedType, setSelectedType] = useState('');
+  const [responsibleId, setResponsibleId] = useState('');
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
   const [duration, setDuration] = useState(1);
@@ -40,17 +42,22 @@ export default function Requests() {
 
   const fetchModalOptions = async () => {
     try {
-      const [typesRes, allocRes] = await Promise.all([
-        client.get('/time-off/types'),
-        client.get('/time-off/allocations'),
+      const [typesRes, allocRes, respRes] = await Promise.all([
+        client.get('/time-off/types').catch(() => ({ data: [] })),
+        client.get('/time-off/allocations').catch(() => ({ data: [] })),
+        client.get('/time-off/responsible-users').catch(() => ({ data: [] })),
       ]);
       setTypes(typesRes.data);
       setAllocations(allocRes.data);
+      setResponsibleUsers(respRes.data);
       if (typesRes.data.length > 0) {
         setSelectedType(typesRes.data[0].id.toString());
       }
+      if (respRes.data.length > 0) {
+        setResponsibleId(respRes.data[0].id.toString());
+      }
     } catch (err) {
-      console.error('Failed to load leave types', err);
+      console.error('Failed to load leave options', err);
     }
   };
 
@@ -77,6 +84,7 @@ export default function Requests() {
         start_date: startDate,
         end_date: endDate,
         duration: Number(duration),
+        responsible_id: responsibleId ? parseInt(responsibleId, 10) : undefined,
       });
       setShowModal(false);
       setStartDate('');
@@ -109,6 +117,7 @@ export default function Requests() {
 
   const filteredRequests = requests.filter((r) => {
     if (activeTab === 'all') return true;
+    if (activeTab === 'deferred') return r.is_deferred;
     return r.status === activeTab;
   });
 
@@ -132,8 +141,8 @@ export default function Requests() {
       </div>
 
       {/* Tabs Filter */}
-      <div className="flex gap-2 border-b border-gray-200 pb-2">
-        {['all', 'draft', 'approved', 'refused'].map((tab) => (
+      <div className="flex flex-wrap gap-2 border-b border-gray-200 pb-2">
+        {['all', 'draft', 'approved', 'refused', 'deferred'].map((tab) => (
           <button
             key={tab}
             onClick={() => setActiveTab(tab)}
@@ -143,7 +152,7 @@ export default function Requests() {
                 : 'text-gray-600 hover:bg-gray-100'
             }`}
           >
-            {tab}
+            {tab === 'deferred' ? '⏸ Deferred' : tab}
           </button>
         ))}
       </div>
@@ -160,7 +169,7 @@ export default function Requests() {
                 <th className="px-6 py-4">Leave Type</th>
                 <th className="px-6 py-4">Dates</th>
                 <th className="px-6 py-4">Duration</th>
-                <th className="px-6 py-4">Status</th>
+                <th className="px-6 py-4">Status & Deferred</th>
                 <th className="px-6 py-4 text-right">Actions</th>
               </tr>
             </thead>
@@ -168,29 +177,48 @@ export default function Requests() {
               {filteredRequests.map((req) => (
                 <tr key={req.id} className="hover:bg-gray-50/80 transition-colors">
                   <td className="px-6 py-4 font-medium text-gray-900">
-                    {req.employee_name || `Employee #${req.employee_id}`}
+                    <div>{req.employee_name || `Employee #${req.employee_id}`}</div>
+                    {req.responsible_name && (
+                      <div className="text-[11px] text-purple-600 font-normal">
+                        Responsible: {req.responsible_name}
+                      </div>
+                    )}
                   </td>
                   <td className="px-6 py-4 text-gray-700">
                     <span className="font-medium">{req.type_name || `Type #${req.type_id}`}</span>
                   </td>
                   <td className="px-6 py-4 text-gray-600 font-mono text-xs">
-                    {req.start_date} → {req.end_date}
+                    <div>{req.start_date} → {req.end_date}</div>
+                    {req.is_deferred && (
+                      <div className="text-[11px] text-purple-700 font-sans mt-0.5 font-semibold">
+                        Applied on: {req.deferred_to_date}
+                      </div>
+                    )}
                   </td>
                   <td className="px-6 py-4 font-medium text-gray-800">
                     {req.duration} {req.type_unit || 'days'}
                   </td>
-                  <td className="px-6 py-4">
-                    <span
-                      className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                        req.status === 'approved'
-                          ? 'bg-emerald-100 text-emerald-800'
-                          : req.status === 'refused'
-                          ? 'bg-rose-100 text-rose-800'
-                          : 'bg-amber-100 text-amber-800'
-                      }`}
-                    >
-                      {req.status}
-                    </span>
+                  <td className="px-6 py-4 space-y-1">
+                    <div>
+                      <span
+                        className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                          req.status === 'approved'
+                            ? 'bg-emerald-100 text-emerald-800'
+                            : req.status === 'refused'
+                            ? 'bg-rose-100 text-rose-800'
+                            : 'bg-amber-100 text-amber-800'
+                        }`}
+                      >
+                        {req.status}
+                      </span>
+                    </div>
+                    {req.is_deferred && (
+                      <div>
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-semibold bg-purple-100 text-purple-800 border border-purple-200">
+                          ⏸ Deferred to {req.deferred_to_date}
+                        </span>
+                      </div>
+                    )}
                   </td>
                   <td className="px-6 py-4 text-right">
                     {req.status === 'draft' && canApprove && (
@@ -288,6 +316,25 @@ export default function Requests() {
                   onChange={(e) => setDuration(parseFloat(e.target.value))}
                   className="w-full text-sm border-gray-300 rounded-xl px-3 py-2 border focus:ring-blue-500"
                 />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-gray-600 mb-1">Responsible Person (for Deferred Time Off)</label>
+                <select
+                  value={responsibleId}
+                  onChange={(e) => setResponsibleId(e.target.value)}
+                  className="w-full text-sm border-gray-300 rounded-xl px-3 py-2 border bg-white focus:ring-blue-500"
+                >
+                  <option value="">Select Responsible Manager</option>
+                  {responsibleUsers.map((u) => (
+                    <option key={u.id} value={u.id}>
+                      {u.name} ({u.role_name})
+                    </option>
+                  ))}
+                </select>
+                <p className="text-[11px] text-gray-400 mt-1">
+                  Responsible HR manager overseeing deferred time off when requests fall into closed pay periods.
+                </p>
               </div>
 
               <div className="flex gap-3 pt-2 justify-end">

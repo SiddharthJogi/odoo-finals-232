@@ -122,6 +122,11 @@ const listTimeOffRequests = asyncHandler(async (req, res) => {
   res.json(requests);
 });
 
+const listResponsibleUsers = asyncHandler(async (_req, res) => {
+  const users = await service.listResponsibleUsers();
+  res.json(users);
+});
+
 const createTimeOffRequest = asyncHandler(async (req, res) => {
   const data = createTimeOffRequestSchema.parse(req.body);
   const employeeId = req.user.role === 'employee'
@@ -167,6 +172,7 @@ module.exports = {
   listAllocations,
   createAllocation,
   listTimeOffRequests,
+  listResponsibleUsers,
   createTimeOffRequest,
   approveTimeOffRequest,
   refuseTimeOffRequest,

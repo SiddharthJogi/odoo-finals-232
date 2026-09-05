@@ -22,6 +22,7 @@ router.get('/time-off/allocations', authenticate, ctrl.listAllocations);
 router.post('/time-off/allocations', authenticate, requireRole('admin', 'hr_manager'), ctrl.createAllocation);
 
 // ───────────── Time Off Requests ─────────────
+router.get('/time-off/responsible-users', authenticate, ctrl.listResponsibleUsers);
 router.get('/time-off/requests', authenticate, ctrl.listTimeOffRequests);
 router.post('/time-off/requests', authenticate, ctrl.createTimeOffRequest);
 router.patch('/time-off/requests/:id/approve', authenticate, requireRole('admin', 'hr_manager'), ctrl.approveTimeOffRequest);

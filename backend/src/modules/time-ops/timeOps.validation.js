@@ -42,6 +42,7 @@ const createTimeOffRequestSchema = z.object({
   start_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
   end_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
   duration: z.number().positive(),
+  responsible_id: z.number().int().positive().optional(),
 });
 
 module.exports = {
