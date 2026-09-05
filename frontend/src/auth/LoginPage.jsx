@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from './AuthContext';
 import { Sparkles, Eye, EyeOff, Loader2 } from 'lucide-react';
+import logo from '../../assets/logo.png';
 
 const DEMO_CREDS = [
   { label: 'Admin', email: 'admin@peoplepay360.com', password: 'admin123', color: 'text-rose-600 bg-rose-50 border-rose-200 hover:bg-rose-100' },
@@ -44,9 +45,11 @@ export default function LoginPage() {
         <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-3xl shadow-2xl overflow-hidden">
           {/* Header */}
           <div className="bg-gradient-to-r from-blue-600/90 to-indigo-700/90 px-8 pt-8 pb-6 text-center">
-            <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-white/15 border border-white/20 mb-4 shadow-lg">
-              <Sparkles className="w-7 h-7 text-amber-300" />
-            </div>
+            <img
+              src={logo}
+              alt="PeoplePay360 logo"
+              className="inline-block w-14 h-14 rounded-2xl object-cover border border-white/20 mb-4 shadow-lg"
+            />
             <h1 className="text-3xl font-extrabold text-white tracking-tight">PeoplePay<span className="text-blue-200">360</span></h1>
             <p className="text-blue-200 text-sm mt-1 font-medium">Enterprise HR &amp; Payroll Platform</p>
           </div>
