@@ -102,7 +102,7 @@ async function updatePayrunStatus(id, status, client) {
 // ───────────── Payslips ─────────────
 async function findPayslipsByPayrun(payrunId) {
   const { rows } = await db.query(
-    `SELECT p.*, e.name AS employee_name
+    `SELECT p.*, e.name AS employee_name, e.email AS employee_email
      FROM payslips p JOIN employees e ON p.employee_id = e.id
      WHERE p.payrun_id = $1
      ORDER BY e.name`,
@@ -113,7 +113,7 @@ async function findPayslipsByPayrun(payrunId) {
 
 async function findPayslipById(id) {
   const { rows } = await db.query(
-    `SELECT p.*, e.name AS employee_name
+    `SELECT p.*, e.name AS employee_name, e.email AS employee_email
      FROM payslips p JOIN employees e ON p.employee_id = e.id
      WHERE p.id = $1`,
     [id]

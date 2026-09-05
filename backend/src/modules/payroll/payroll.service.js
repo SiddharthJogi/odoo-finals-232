@@ -354,16 +354,39 @@ async function sendPayslips(payrunId, userId) {
     throw new ValidationError('No payslips found for this payrun');
   }
 
+  const mailer = require('../hr-core/mailer');
+  const { generatePayslipPdfBuffer } = require('./pdfGenerator');
+  let successCount = 0;
+
+  for (const p of payslips) {
+    try {
+      if (!p.employee_email) continue;
+      
+      const fullPayslip = await getPayslipWithLines(p.id);
+      const pdfBuffer = await generatePayslipPdfBuffer(fullPayslip);
+      
+      await mailer.sendPayslipEmail({
+        email: p.employee_email,
+        name: p.employee_name || 'Employee',
+        payrunName: payrun.name,
+        pdfBuffer,
+      });
+      successCount++;
+    } catch (error) {
+      console.error(`Failed to send payslip ${p.id} to ${p.employee_email}:`, error);
+    }
+  }
+
   await db.query(
     `INSERT INTO audit_logs (user_id, action, entity, entity_id, note)
      VALUES ($1, $2, $3, $4, $5)`,
-    [userId || null, 'send_payslips', 'payrun', payrunId, `Dispatched ${payslips.length} payslips via email service for payrun #${payrunId} (${payrun.name})`]
+    [userId || null, 'send_payslips', 'payrun', payrunId, `Dispatched ${successCount} payslips via email service for payrun #${payrunId} (${payrun.name})`]
   );
 
   return {
     success: true,
-    count: payslips.length,
-    message: `Dispatched ${payslips.length} payslips via email to registered employees.`,
+    count: successCount,
+    message: `Dispatched ${successCount} payslips via email to registered employees.`,
   };
 }
 
