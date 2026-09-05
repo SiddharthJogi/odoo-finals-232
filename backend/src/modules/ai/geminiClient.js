@@ -61,8 +61,8 @@ function postJson(urlStr, data) {
  * List of Gemini models in order of priority for high accuracy
  */
 function getCandidateModels() {
-  const primary = config.geminiModel || 'gemini-1.5-pro';
-  const candidates = [primary, 'gemini-1.5-pro', 'gemini-2.0-flash', 'gemini-1.5-flash'];
+  const primary = config.geminiModel || 'gemini-2.5-flash';
+  const candidates = [primary, 'gemini-2.5-flash', 'gemini-2.5-pro', 'gemini-flash-latest'];
   return [...new Set(candidates)];
 }
 
@@ -91,7 +91,8 @@ Guidelines:
 1. Always state specific figures, totals, employee counts, or department values accurately.
 2. Format money values in Indian Rupees (₹) with proper comma separators (e.g. ₹10,51,560.00).
 3. Do NOT make up, assume, or extrapolate facts beyond the provided context.
-4. Keep the answer clear, professional, and concise (2-3 sentences max).`;
+4. Keep the answer clear and professional. For lists or breakdowns, include every provided row; never stop after a heading or partial sentence.
+5. If the context has insufficient history for a forecast, state that clearly and include the latest available figure.`;
 
   const promptText = `${systemInstruction}
 
@@ -107,7 +108,7 @@ User Question: ${question}`;
       },
     ],
     generationConfig: {
-      maxOutputTokens: 250,
+      maxOutputTokens: 1000,
       temperature: 0.1, // Low temperature for high factual accuracy
     },
   };

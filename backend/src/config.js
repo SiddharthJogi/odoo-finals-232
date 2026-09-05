@@ -31,7 +31,7 @@ module.exports = {
   },
   aiServiceUrl: process.env.AI_SERVICE_URL || 'http://localhost:8001',
   geminiApiKey: process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY || process.env.GOOGLE_AI_STUDIO_API_KEY || process.env.GEMINI_KEY || process.env.API_KEY || '',
-  geminiModel: process.env.GEMINI_MODEL || 'gemini-1.5-pro',
+  geminiModel: process.env.GEMINI_MODEL || 'gemini-2.5-flash',
 };
 
 

@@ -2,7 +2,53 @@
 @tailwind components;
 @tailwind utilities;
 
-body {
-  font-family: 'Inter', system-ui, -apple-system, sans-serif;
-  @apply bg-gray-50 text-gray-900 antialiased;
+@layer base {
+  :root {
+    --background: 40 30% 98%; /* #fcfbf9 - very light beige/cream */
+    --foreground: 20 10% 15%; /* #2b2826 - dark warm grey */
+    
+    --muted: 40 20% 94%;
+    --muted-foreground: 20 5% 45%;
+    
+    --card: 0 0% 100%;
+    --card-foreground: 20 10% 15%;
+    
+    --popover: 0 0% 100%;
+    --popover-foreground: 20 10% 15%;
+    
+    --border: 40 15% 90%;
+    --input: 40 15% 90%;
+    
+    --primary: 35 40% 45%; /* #a38257 - nice warm beige/brown */
+    --primary-foreground: 0 0% 100%;
+    
+    --secondary: 40 20% 90%;
+    --secondary-foreground: 35 40% 30%;
+    
+    --accent: 40 20% 90%;
+    --accent-foreground: 35 40% 30%;
+    
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 0 0% 100%;
+
+    --ring: 35 40% 45%;
+    --radius: 0.75rem;
+  }
+}
+
+@layer base {
+  * {
+    border-color: hsl(var(--border));
+  }
+  body {
+    font-family: 'Outfit', system-ui, -apple-system, sans-serif;
+    background-color: hsl(var(--background));
+    color: hsl(var(--foreground));
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+  ::selection {
+    background-color: hsl(var(--primary) / 0.2);
+    color: hsl(var(--primary));
+  }
 }

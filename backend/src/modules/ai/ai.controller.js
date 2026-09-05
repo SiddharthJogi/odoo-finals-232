@@ -165,6 +165,10 @@ function synthesizeFallbackAnswer(intent, dbData) {
     }
     case 'trend': {
       if (!Array.isArray(dbData) || dbData.length === 0) return 'Salary trend projection requires at least one paid payrun.';
+      if (dbData.length < 2) {
+        const latest = Number(dbData[0].total_net || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 });
+        return `A reliable next-period projection requires at least two paid payruns. The latest recorded net payroll is ₹${latest}.`;
+      }
       const avg = dbData.reduce((a, b) => a + Number(b.total_net || 0), 0) / dbData.length;
       return `Over the last ${dbData.length} payrun periods, monthly net expenditure averages ₹${avg.toLocaleString('en-IN', { minimumFractionDigits: 2 })}.`;
     }
