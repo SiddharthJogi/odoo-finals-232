@@ -10,7 +10,7 @@ const AI_SERVICE_URL = config.aiServiceUrl || 'http://localhost:8001';
 /**
  * Helper to call python FastAPI microservice if available
  */
-function callAiService(path, method = 'GET', body = null) {
+function callAiService(path, method = 'GET', body = null, headers = {}) {
   return new Promise((resolve, reject) => {
     try {
       const url = new URL(AI_SERVICE_URL + path);
@@ -24,6 +24,7 @@ function callAiService(path, method = 'GET', body = null) {
           method,
           headers: {
             'Content-Type': 'application/json',
+            ...headers,
             ...(postData ? { 'Content-Length': Buffer.byteLength(postData) } : {}),
           },
           timeout: 3000,
@@ -353,7 +354,9 @@ const anomalyScan = asyncHandler(async (req, res) => {
   if (!payrun_id) return res.status(400).json({ error: 'payrun_id is required' });
 
   try {
-    const response = await callAiService('/ai/anomaly-scan', 'POST', { payrun_id });
+    const response = await callAiService('/ai/anomaly-scan', 'POST', { payrun_id }, {
+      Authorization: req.headers.authorization || '',
+    });
     res.json(response.body);
   } catch (err) {
     res.status(500).json({ error: 'AI microservice unreachable', details: err.message });

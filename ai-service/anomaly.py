@@ -16,14 +16,14 @@ import httpx
 API_BASE = os.getenv("API_BASE_URL", "http://localhost:4000/api")
 
 
-def scan_payrun(payrun_id: int) -> Dict[str, Any]:
+def scan_payrun(payrun_id: int, authorization: str = "") -> Dict[str, Any]:
     """
     Run anomaly detection on a validated payrun.
     """
     anomalies: List[Dict[str, Any]] = []
 
     try:
-        with httpx.Client(timeout=10.0) as client:
+        with httpx.Client(timeout=10.0, headers={"Authorization": authorization} if authorization else {}) as client:
             resp = client.get(f"{API_BASE}/payroll/payruns/{payrun_id}/payslips")
             payslips = resp.json() if resp.status_code == 200 else []
 

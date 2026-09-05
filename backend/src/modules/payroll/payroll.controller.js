@@ -60,6 +60,10 @@ const getPayrun = asyncHandler(async (req, res) => {
   const payslips = await service.listPayslipsByPayrun(payrun.id);
   res.json({ ...payrun, payslips });
 });
+const listPayslipsByPayrun = asyncHandler(async (req, res) => {
+  const payslips = await service.listPayslipsByPayrun(parseInt(req.params.id, 10));
+  res.json(payslips);
+});
 
 const initDraft = asyncHandler(async (req, res) => {
   const data = createPayrunDraftSchema.parse(req.body);
@@ -205,6 +209,7 @@ module.exports = {
   deleteRule,
   listPayruns,
   getPayrun,
+  listPayslipsByPayrun,
   initDraft,
   createPayrun,
   computePayrun,

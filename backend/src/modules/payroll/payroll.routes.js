@@ -19,6 +19,7 @@ router.delete('/rules/:id', authenticate, requireRole('admin', 'hr_payroll_manag
 // ───────────── Payruns ─────────────
 router.get('/payruns', authenticate, requireRole('admin', 'hr_payroll_manager', 'hr_payroll_user', 'hr_manager'), ctrl.listPayruns);
 router.get('/payruns/:id', authenticate, requireRole('admin', 'hr_payroll_manager', 'hr_payroll_user', 'hr_manager'), ctrl.getPayrun);
+router.get('/payruns/:id/payslips', authenticate, requireRole('admin', 'hr_payroll_manager', 'hr_payroll_user', 'hr_manager'), ctrl.listPayslipsByPayrun);
 router.post('/payruns/draft', authenticate, requireRole('admin', 'hr_payroll_manager', 'hr_payroll_user'), ctrl.initDraft);
 router.post('/payruns', authenticate, requireRole('admin', 'hr_payroll_manager', 'hr_payroll_user'), ctrl.createPayrun);
 router.patch('/payruns/:id/compute', authenticate, requireRole('admin', 'hr_payroll_manager', 'hr_payroll_user'), ctrl.computePayrun);
