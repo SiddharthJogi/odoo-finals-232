@@ -24,7 +24,9 @@ export default function Requests() {
   const [types, setTypes] = useState([]);
   const [allocations, setAllocations] = useState([]);
   const [responsibleUsers, setResponsibleUsers] = useState([]);
+  const [employees, setEmployees] = useState([]);
   const [selectedType, setSelectedType] = useState('');
+  const [selectedEmployeeId, setSelectedEmployeeId] = useState('');
   const [responsibleId, setResponsibleId] = useState('');
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
@@ -53,19 +55,28 @@ export default function Requests() {
 
   const fetchModalOptions = async () => {
     try {
-      const [typesRes, allocRes, respRes] = await Promise.all([
+      const isManagerOrAdmin = ['admin', 'hr_manager', 'hr_payroll_manager', 'hr_payroll_user'].includes(role);
+      const [typesRes, allocRes, respRes, empRes] = await Promise.all([
         client.get('/time-off/types').catch(() => ({ data: [] })),
         client.get('/time-off/allocations').catch(() => ({ data: [] })),
         client.get('/time-off/responsible-users').catch(() => ({ data: [] })),
+        isManagerOrAdmin ? client.get('/employees').catch(() => ({ data: [] })) : Promise.resolve({ data: [] }),
       ]);
       setTypes(typesRes.data);
       setAllocations(allocRes.data);
       setResponsibleUsers(respRes.data);
+      setEmployees(empRes.data);
+
       if (typesRes.data.length > 0) {
         setSelectedType(typesRes.data[0].id.toString());
       }
       if (respRes.data.length > 0) {
         setResponsibleId(respRes.data[0].id.toString());
+      }
+      if (user?.employeeId) {
+        setSelectedEmployeeId(user.employeeId.toString());
+      } else if (empRes.data.length > 0) {
+        setSelectedEmployeeId(empRes.data[0].id.toString());
       }
     } catch (err) {
       console.error('Failed to load leave options', err);
@@ -88,9 +99,17 @@ export default function Requests() {
   const handleCreateRequest = async (e) => {
     e.preventDefault();
     setError('');
+
+    const targetEmpId = selectedEmployeeId ? parseInt(selectedEmployeeId, 10) : user?.employeeId;
+    if (!targetEmpId) {
+      setError('Please select an employee for this leave request.');
+      return;
+    }
+
     setSubmitting(true);
     try {
       await client.post('/time-off/requests', {
+        employee_id: targetEmpId,
         type_id: parseInt(selectedType, 10),
         start_date: startDate,
         end_date: endDate,
@@ -144,7 +163,12 @@ export default function Requests() {
   });
 
   const getSelectedTypeObj = () => types.find((t) => t.id.toString() === selectedType);
-  const getSelectedTypeAlloc = () => allocations.find((a) => a.type_id.toString() === selectedType);
+  const getSelectedTypeAlloc = () => {
+    const targetEmpId = selectedEmployeeId || user?.employeeId;
+    return allocations.find(
+      (a) => a.type_id.toString() === selectedType && (!targetEmpId || a.employee_id.toString() === targetEmpId.toString())
+    );
+  };
   const pendingCount = requests.filter((r) => r.status === 'draft').length;
   const calendarDays = (() => {
     const year = calendarMonth.getFullYear();
@@ -360,6 +384,25 @@ export default function Requests() {
             {error && <div className="p-3 bg-rose-50 text-rose-700 text-xs rounded-xl">{error}</div>}
 
             <form onSubmit={handleCreateRequest} className="space-y-4">
+              {(role !== 'employee' || !user?.employeeId) && (
+                <div>
+                  <label className="block text-xs font-semibold text-gray-600 mb-1">Employee</label>
+                  <select
+                    value={selectedEmployeeId}
+                    onChange={(e) => setSelectedEmployeeId(e.target.value)}
+                    className="w-full text-sm border-gray-300 rounded-xl px-3 py-2 border bg-white focus:ring-blue-500"
+                    required
+                  >
+                    <option value="">Select Employee</option>
+                    {employees.map((emp) => (
+                      <option key={emp.id} value={emp.id}>
+                        {emp.name} ({emp.job_position || 'Employee'})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
               <div>
                 <label className="block text-xs font-semibold text-gray-600 mb-1">Time Off Type</label>
                 <select
