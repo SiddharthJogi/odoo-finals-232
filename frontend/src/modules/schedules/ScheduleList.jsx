@@ -1,10 +1,15 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import client from '../../api/client';
+import { useAuth } from '../../auth/AuthContext';
+import { useToast } from '../../components/Toast';
 
 export default function ScheduleList() {
+  const { role } = useAuth();
+  const { addToast } = useToast();
   const [schedules, setSchedules] = useState([]);
   const [loading, setLoading] = useState(true);
+  const canManage = ['admin', 'hr_manager'].includes(role);
 
   useEffect(() => {
     client.get('/schedules')
@@ -13,13 +18,23 @@ export default function ScheduleList() {
       .finally(() => setLoading(false));
   }, []);
 
+  const archiveSchedule = async (schedule) => {
+    try {
+      await client.delete(`/schedules/${schedule.id}`);
+      setSchedules((current) => current.map((item) => item.id === schedule.id ? { ...item, status: 'archived' } : item));
+      addToast('Schedule archived. Existing assignments were preserved.', 'success');
+    } catch (err) {
+      addToast(err.response?.data?.error || 'Failed to archive schedule', 'error');
+    }
+  };
+
   return (
     <div>
       <div className="flex justify-between items-center mb-6">
         <h1 className="text-2xl font-bold text-gray-900">Working Schedules</h1>
-        <Link to="/schedules/new" className="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-blue-700 transition">
+        {canManage && <Link to="/schedules/new" className="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-blue-700 transition">
           + New Schedule
-        </Link>
+        </Link>}
       </div>
 
       <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
@@ -50,7 +65,14 @@ export default function ScheduleList() {
                     </span>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-right">
-                    <Link to={`/schedules/${schedule.id}`} className="text-blue-600 hover:text-blue-900 font-medium">View</Link>
+                    <div className="flex items-center justify-end gap-3">
+                      <Link to={`/schedules/${schedule.id}`} className="text-blue-600 hover:text-blue-900 font-medium">
+                        {canManage && schedule.status === 'active' ? 'Edit' : 'View'}
+                      </Link>
+                      {canManage && schedule.status === 'active' && (
+                        <button onClick={() => archiveSchedule(schedule)} className="text-gray-600 hover:text-gray-900 font-medium">Archive</button>
+                      )}
+                    </div>
                   </td>
                 </tr>
               ))}

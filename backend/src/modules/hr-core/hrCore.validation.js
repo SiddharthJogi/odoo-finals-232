@@ -68,6 +68,10 @@ const createScheduleSchema = z.object({
   })).min(1),
 });
 
+const updateScheduleSchema = createScheduleSchema.partial().extend({
+  lines: createScheduleSchema.shape.lines.optional(),
+});
+
 const createDepartmentSchema = z.object({
   name: z.string().min(1).max(120),
   parent_id: z.number().int().positive().optional(),
@@ -85,5 +89,6 @@ module.exports = {
   updateContractSchema,
   updateContractStatusSchema,
   createScheduleSchema,
+  updateScheduleSchema,
   createDepartmentSchema,
 };

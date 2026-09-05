@@ -41,5 +41,7 @@ router.patch('/contracts/:id/status', authenticate, requireRole('admin', 'hr_man
 router.get('/schedules', authenticate, requireRole('admin', 'hr_manager', 'hr_payroll_manager', 'hr_payroll_user'), ctrl.listSchedules);
 router.get('/schedules/:id', authenticate, ctrl.getSchedule);
 router.post('/schedules', authenticate, requireRole('admin', 'hr_manager'), ctrl.createSchedule);
+router.put('/schedules/:id', authenticate, requireRole('admin', 'hr_manager'), ctrl.updateSchedule);
+router.delete('/schedules/:id', authenticate, requireRole('admin', 'hr_manager'), ctrl.archiveSchedule);
 
 module.exports = router;

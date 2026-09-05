@@ -12,6 +12,7 @@ const {
   updateContractSchema,
   updateContractStatusSchema,
   createScheduleSchema,
+  updateScheduleSchema,
   createDepartmentSchema,
 } = require('./hrCore.validation');
 
@@ -163,6 +164,17 @@ const createSchedule = asyncHandler(async (req, res) => {
   res.status(201).json(schedule);
 });
 
+const updateSchedule = asyncHandler(async (req, res) => {
+  const data = updateScheduleSchema.parse(req.body);
+  const schedule = await service.updateSchedule(parseInt(req.params.id, 10), data);
+  res.json(schedule);
+});
+
+const archiveSchedule = asyncHandler(async (req, res) => {
+  const schedule = await service.archiveSchedule(parseInt(req.params.id, 10));
+  res.json(schedule);
+});
+
 module.exports = {
   login,
   createUser,
@@ -189,4 +201,6 @@ module.exports = {
   listSchedules,
   getSchedule,
   createSchedule,
+  updateSchedule,
+  archiveSchedule,
 };
