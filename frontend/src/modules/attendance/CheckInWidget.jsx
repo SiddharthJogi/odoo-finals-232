@@ -1,14 +1,17 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../../auth/AuthContext';
 import client from '../../api/client';
+import { useToast } from '../../components/Toast';
+import { Clock, CheckCircle2, LogOut, Timer } from 'lucide-react';
 
 export default function CheckInWidget() {
   const { user } = useAuth();
+  const { addToast } = useToast();
   const [activeRecord, setActiveRecord] = useState(null);
   const [status, setStatus] = useState('loading'); // 'loading', 'checked_out', 'checked_in'
-  const [elapsed, setElapsed] = useState(0);
-  const [error, setError] = useState('');
+  const [elapsed, setElapsed] = useState(0); // seconds
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
 
   // Fetch active attendance on mount
   useEffect(() => {
@@ -49,28 +52,35 @@ export default function CheckInWidget() {
   };
 
   const handleCheckIn = async () => {
-    setError('');
     setLoading(true);
+    setError('');
     try {
       const { data } = await client.post('/attendance/check-in', {});
       setActiveRecord(data);
       setStatus('checked_in');
+      setElapsed(0);
+      addToast(`Checked in at ${new Date(data.check_in).toLocaleTimeString()}`, 'success');
     } catch (err) {
-      setError(err.response?.data?.error || 'Check-in failed');
+      const msg = err.response?.data?.error || 'Check-in failed';
+      setError(msg);
+      addToast(msg, 'error');
     } finally {
       setLoading(false);
     }
   };
 
   const handleCheckOut = async () => {
-    setError('');
     setLoading(true);
+    setError('');
     try {
       const { data } = await client.post('/attendance/check-out', {});
       setActiveRecord(data);
       setStatus('checked_out');
+      addToast(`Checked out — ${Number(data.worked_hours || 0).toFixed(1)} hours worked`, 'success');
     } catch (err) {
-      setError(err.response?.data?.error || 'Check-out failed');
+      const msg = err.response?.data?.error || 'Check-out failed';
+      setError(msg);
+      addToast(msg, 'error');
     } finally {
       setLoading(false);
     }
@@ -98,7 +108,9 @@ export default function CheckInWidget() {
           </div>
 
           <h1 className="text-3xl font-extrabold text-gray-900 tracking-tight">Daily Attendance</h1>
-          <p className="text-gray-500 text-sm mt-1">Log your working hours accurately for payroll calculation</p>
+          <p className="text-gray-500 text-sm mt-1">
+            {user?.name || 'Employee'} · {new Date().toLocaleDateString('en-IN', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
+          </p>
 
           {error && (
             <div className="mt-4 bg-rose-50 border border-rose-200 text-rose-700 rounded-xl p-3 text-sm text-left flex items-start gap-2">

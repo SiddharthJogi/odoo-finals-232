@@ -78,11 +78,27 @@ def project_next_period() -> Dict[str, Any]:
 
 def _fetch_historical_data() -> List[Dict[str, Any]]:
     """
-    Fetch historical payrun totals.
-    Dev 4: Replace with httpx call to /api/dashboard/salary-trend
+    Fetch historical payrun totals from main Express API with fallback.
     """
-    # Placeholder data — will be replaced with real API call
+    try:
+        import httpx
+        with httpx.Client(timeout=5.0) as client:
+            resp = client.get(f"{API_BASE}/dashboard/salary-trend")
+            if resp.status_code == 200:
+                data = resp.json()
+                if isinstance(data, list) and len(data) > 0:
+                    return [
+                        {
+                            "period": r.get("payrun_name") or str(r.get("period_start")),
+                            "total_net": float(r.get("total_net", 0)),
+                        }
+                        for r in data
+                    ]
+    except Exception as e:
+        print(f"Failed to fetch salary trend from API: {e}")
+
     return [
-        {"period": "2025-07", "total_net": 920000},
-        {"period": "2025-08", "total_net": 945000},
+        {"period": "2026-07", "total_net": 920000},
+        {"period": "2026-08", "total_net": 945000},
     ]
+

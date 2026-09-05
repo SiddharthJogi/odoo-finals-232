@@ -102,7 +102,7 @@ const getPayslip = asyncHandler(async (req, res) => {
 const getPayslipPdf = asyncHandler(async (req, res) => {
   const payslip = await service.getPayslipWithLines(parseInt(req.params.id, 10));
   res.setHeader('Content-Type', 'application/pdf');
-  res.setHeader('Content-Disposition', `attachment; filename=payslip_${payslip.id}.pdf`);
+  res.setHeader('Content-Disposition', `inline; filename=payslip_${payslip.id}.pdf`);
 
   const PDFDocument = require('pdfkit');
   const doc = new PDFDocument({ margin: 50, size: 'A4' });
@@ -126,9 +126,10 @@ const getPayslipPdf = asyncHandler(async (req, res) => {
   doc.fillColor('black').font('Helvetica-Bold').fontSize(11)
     .text('Employee Details', 65, 160);
   doc.font('Helvetica').fontSize(10)
-    .text(`Name: ${payslip.employee_name}`, 65, 175)
+    .text(`Name: ${payslip.employee_name || 'Employee #' + payslip.employee_id}`, 65, 175)
     .text(`Worked Days: ${payslip.worked_days}`, 65, 190)
-    .text(`Contract ID: ${payslip.contract_id}`, 300, 175);
+    .text(`Contract ID: ${payslip.contract_id}`, 300, 175)
+    .text(`Bank Account: ${payslip.bank_account || 'N/A'}`, 300, 190);
   doc.moveDown(4);
 
   // --- Breakdown Table ---
@@ -145,7 +146,7 @@ const getPayslipPdf = asyncHandler(async (req, res) => {
   let y = tableTop + 25;
   doc.fillColor('black').font('Helvetica');
   
-  for (const line of payslip.lines) {
+  for (const line of payslip.lines || []) {
     doc.text(line.label, 60, y)
        .text(line.category, 250, y)
        .text(Number(line.value).toFixed(2), 400, y, { align: 'right', width: 130 });
@@ -189,6 +190,11 @@ const getPayslipPdf = asyncHandler(async (req, res) => {
   doc.end();
 });
 
+const sendPayslips = asyncHandler(async (req, res) => {
+  const result = await service.sendPayslips(parseInt(req.params.id, 10), req.user?.id);
+  res.json(result);
+});
+
 module.exports = {
   listStructures,
   getStructure,
@@ -206,4 +212,6 @@ module.exports = {
   markPaid,
   getPayslip,
   getPayslipPdf,
+  sendPayslips,
 };
+

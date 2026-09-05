@@ -1,6 +1,18 @@
 import { useState, useEffect } from 'react';
+import { Link } from 'react-router-dom';
 import { useAuth } from '../../auth/AuthContext';
 import client from '../../api/client';
+import { Clock, CheckCircle2, AlertCircle } from 'lucide-react';
+
+function SkeletonRow() {
+  return (
+    <tr className="animate-pulse">
+      {[...Array(5)].map((_, i) => (
+        <td key={i} className="px-6 py-4"><div className="h-4 bg-gray-100 rounded w-24" /></td>
+      ))}
+    </tr>
+  );
+}
 
 export default function AttendanceList() {
   const { role } = useAuth();
@@ -72,15 +84,21 @@ export default function AttendanceList() {
       {/* Header Bar */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900 tracking-tight">Attendance Logs</h1>
-          <p className="text-sm text-gray-500">Track and manage employee check-ins and working hours</p>
+          <h1 className="text-2xl font-bold text-gray-900 tracking-tight flex items-center gap-2">
+            <Clock className="w-7 h-7 text-indigo-600" />
+            Attendance Logs
+          </h1>
+          <p className="text-xs text-gray-500 mt-1">
+            {loading ? '...' : `${attendances.length} records loaded`} · Track and manage employee check-ins and working hours
+          </p>
         </div>
-        <a
-          href="/attendance/check-in"
+        <Link
+          to="/attendance/check-in"
           className="inline-flex items-center gap-2 px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-semibold shadow-sm transition"
         >
-          ⏱ Open Check In/Out Widget
-        </a>
+          <CheckCircle2 className="w-4 h-4" />
+          Open Check In/Out Widget
+        </Link>
       </div>
 
       {/* Filter Toolbar */}

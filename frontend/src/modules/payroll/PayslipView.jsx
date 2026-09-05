@@ -1,9 +1,11 @@
 import { useState, useEffect } from 'react';
-import { useParams } from 'react-router-dom';
+import { useParams, useNavigate } from 'react-router-dom';
 import client from '../../api/client';
+import { FileText, ArrowLeft, Download, AlertTriangle, CheckCircle2, TrendingUp, TrendingDown } from 'lucide-react';
 
 export default function PayslipView() {
   const { id } = useParams();
+  const navigate = useNavigate();
   const [payslip, setPayslip] = useState(null);
   const [loading, setLoading] = useState(true);
 
@@ -14,72 +16,196 @@ export default function PayslipView() {
       .finally(() => setLoading(false));
   }, [id]);
 
-  if (loading) return <div className="text-center py-12 text-gray-500">Loading payslip...</div>;
-  if (!payslip) return <div className="text-center py-12 text-red-500">Payslip not found</div>;
+  if (loading) {
+    return (
+      <div className="max-w-3xl mx-auto animate-pulse space-y-6">
+        <div className="h-10 bg-gray-200 rounded w-1/3" />
+        <div className="bg-white rounded-xl border border-gray-200 p-6 space-y-4">
+          <div className="h-4 bg-gray-100 rounded w-1/2" />
+          <div className="h-4 bg-gray-100 rounded w-1/3" />
+          <div className="space-y-2 mt-4">
+            {[...Array(5)].map((_, i) => <div key={i} className="h-10 bg-gray-50 rounded" />)}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (!payslip) {
+    return (
+      <div className="text-center py-24">
+        <FileText className="w-16 h-16 text-gray-200 mx-auto mb-4" />
+        <p className="text-gray-500 font-semibold">Payslip not found</p>
+        <button onClick={() => navigate('/payroll')} className="mt-4 text-blue-600 text-sm underline">
+          Back to Payruns
+        </button>
+      </div>
+    );
+  }
+
+  const earnings = (payslip.lines || []).filter((l) => l.category !== 'deduction');
+  const deductions = (payslip.lines || []).filter((l) => l.category === 'deduction');
 
   return (
-    <div className="max-w-3xl mx-auto">
-      <div className="flex justify-between items-center mb-6">
-        <h1 className="text-2xl font-bold text-gray-900">Payslip #{payslip.id}</h1>
-        <a href={`/api/payroll/payslips/${id}/pdf`} target="_blank" rel="noreferrer"
-          className="px-4 py-2 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition">
+    <div className="max-w-3xl mx-auto pb-12">
+      {/* Header */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
+        <div>
+          <button
+            onClick={() => navigate('/payroll')}
+            className="flex items-center gap-1.5 text-xs font-semibold text-gray-500 hover:text-gray-700 mb-2 transition"
+          >
+            <ArrowLeft className="w-3.5 h-3.5" />
+            Back to Payruns
+          </button>
+          <h1 className="text-2xl font-extrabold text-gray-900 flex items-center gap-2">
+            <FileText className="w-7 h-7 text-blue-600" />
+            Payslip #{String(payslip.id).padStart(5, '0')}
+          </h1>
+          <p className="text-xs text-gray-500 mt-1">{payslip.employee_name}</p>
+        </div>
+        <a
+          href={`/api/payroll/payslips/${id}/pdf`}
+          target="_blank"
+          rel="noreferrer"
+          className="flex items-center gap-1.5 px-4 py-2 text-xs font-bold bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition shadow-md"
+        >
+          <Download className="w-4 h-4" />
           Download PDF
         </a>
       </div>
 
-      <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-        <div className="grid grid-cols-2 gap-4 mb-6">
-          <div>
-            <p className="text-sm text-gray-500">Employee</p>
-            <p className="font-medium">{payslip.employee_name}</p>
-          </div>
-          <div>
-            <p className="text-sm text-gray-500">Worked Days</p>
-            <p className="font-medium">{payslip.worked_days}</p>
+      <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+        {/* Employee Info Bar */}
+        <div className="bg-gradient-to-r from-blue-800 to-indigo-900 text-white p-6">
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+            <div>
+              <p className="text-[11px] text-blue-200 font-semibold uppercase tracking-wide">Employee</p>
+              <p className="text-sm font-bold mt-0.5">{payslip.employee_name || `#${payslip.employee_id}`}</p>
+            </div>
+            <div>
+              <p className="text-[11px] text-blue-200 font-semibold uppercase tracking-wide">Payslip Ref</p>
+              <p className="text-sm font-bold mt-0.5 font-mono">PS-{String(payslip.id).padStart(5, '0')}</p>
+            </div>
+            <div>
+              <p className="text-[11px] text-blue-200 font-semibold uppercase tracking-wide">Worked Days</p>
+              <p className="text-sm font-bold mt-0.5">{payslip.worked_days} days</p>
+            </div>
+            <div>
+              <p className="text-[11px] text-blue-200 font-semibold uppercase tracking-wide">Bank Account</p>
+              <p className={`text-sm font-bold mt-0.5 ${!payslip.bank_account ? 'text-red-300' : ''}`}>
+                {payslip.bank_account || '⚠ Not Registered'}
+              </p>
+            </div>
           </div>
         </div>
 
-        {payslip.has_warning && (
-          <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3 mb-6 text-sm text-yellow-800">
-            ⚠ {payslip.warning_reason}
-          </div>
-        )}
+        <div className="p-6 space-y-6">
+          {/* Compliance Warning */}
+          {payslip.has_warning && (
+            <div className="flex items-start gap-3 bg-amber-50 border border-amber-200 rounded-xl p-4">
+              <AlertTriangle className="w-5 h-5 text-amber-500 shrink-0 mt-0.5" />
+              <div>
+                <p className="text-sm font-bold text-amber-900">Compliance Warning</p>
+                <p className="text-xs text-amber-800 mt-0.5">{payslip.warning_reason}</p>
+              </div>
+            </div>
+          )}
 
-        <h2 className="text-lg font-semibold mb-3">Computation Breakdown</h2>
-        <table className="min-w-full divide-y divide-gray-200 mb-6">
-          <thead className="bg-gray-50">
-            <tr>
-              <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Rule</th>
-              <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Category</th>
-              <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase">Amount</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-gray-200">
-            {(payslip.lines || []).map((line, i) => (
-              <tr key={i} className="hover:bg-gray-50">
-                <td className="px-4 py-3 text-sm">{line.label}</td>
-                <td className="px-4 py-3">
-                  <span className={`px-2 py-0.5 text-xs rounded-full ${
-                    line.category === 'deduction' ? 'bg-red-50 text-red-700' : 'bg-green-50 text-green-700'
-                  }`}>{line.category}</span>
-                </td>
-                <td className="px-4 py-3 text-sm text-right font-mono">
-                  {line.category === 'deduction' ? '-' : ''}₹{Number(line.value).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+          {/* Earnings */}
+          {earnings.length > 0 && (
+            <div>
+              <h3 className="text-sm font-bold text-gray-900 flex items-center gap-2 mb-3">
+                <TrendingUp className="w-4 h-4 text-emerald-600" />
+                Earnings
+              </h3>
+              <div className="border border-gray-200 rounded-xl overflow-hidden">
+                <table className="min-w-full divide-y divide-gray-100">
+                  <thead className="bg-emerald-50">
+                    <tr>
+                      <th className="px-4 py-2.5 text-left text-xs font-bold text-emerald-700 uppercase">Component</th>
+                      <th className="px-4 py-2.5 text-right text-xs font-bold text-emerald-700 uppercase">Amount (₹)</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-50">
+                    {earnings.map((line, i) => (
+                      <tr key={i} className="hover:bg-gray-50 transition">
+                        <td className="px-4 py-3 text-sm text-gray-800 font-medium">{line.label}</td>
+                        <td className="px-4 py-3 text-sm text-right font-mono font-semibold text-emerald-700">
+                          ₹{Number(line.value).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
 
-        <div className="border-t border-gray-200 pt-4 grid grid-cols-2 gap-4">
-          <div className="text-right">
-            <p className="text-sm text-gray-500">Gross</p>
-            <p className="text-xl font-bold text-gray-900">₹{Number(payslip.gross_total).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</p>
+          {/* Deductions */}
+          {deductions.length > 0 && (
+            <div>
+              <h3 className="text-sm font-bold text-gray-900 flex items-center gap-2 mb-3">
+                <TrendingDown className="w-4 h-4 text-red-500" />
+                Deductions
+              </h3>
+              <div className="border border-gray-200 rounded-xl overflow-hidden">
+                <table className="min-w-full divide-y divide-gray-100">
+                  <thead className="bg-red-50">
+                    <tr>
+                      <th className="px-4 py-2.5 text-left text-xs font-bold text-red-700 uppercase">Component</th>
+                      <th className="px-4 py-2.5 text-right text-xs font-bold text-red-700 uppercase">Amount (₹)</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-50">
+                    {deductions.map((line, i) => (
+                      <tr key={i} className="hover:bg-gray-50 transition">
+                        <td className="px-4 py-3 text-sm text-gray-800 font-medium">{line.label}</td>
+                        <td className="px-4 py-3 text-sm text-right font-mono font-semibold text-red-600">
+                          -₹{Number(line.value).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+
+          {/* Totals Summary */}
+          <div className="bg-gray-50 border border-gray-200 rounded-xl p-5">
+            <div className="flex items-center justify-between py-2 border-b border-gray-200 text-sm">
+              <span className="text-gray-600 font-medium">Total Gross Earnings</span>
+              <span className="font-bold text-gray-900 font-mono">
+                ₹{Number(payslip.gross_total).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+              </span>
+            </div>
+            <div className="flex items-center justify-between py-2 border-b border-gray-200 text-sm">
+              <span className="text-gray-600 font-medium">Total Deductions</span>
+              <span className="font-bold text-red-600 font-mono">
+                -₹{(Number(payslip.gross_total) - Number(payslip.net_total)).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+              </span>
+            </div>
+            <div className="flex items-center justify-between py-3 mt-1">
+              <span className="text-base font-extrabold text-gray-900">Net Salary Payable</span>
+              <span className="text-xl font-extrabold text-emerald-600 font-mono">
+                ₹{Number(payslip.net_total).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+              </span>
+            </div>
           </div>
-          <div className="text-right">
-            <p className="text-sm text-gray-500">Net</p>
-            <p className="text-xl font-bold text-green-600">₹{Number(payslip.net_total).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</p>
-          </div>
+
+          {!payslip.has_warning && (
+            <div className="flex items-center gap-2 text-xs text-emerald-700 font-semibold bg-emerald-50 border border-emerald-200 rounded-lg px-4 py-2">
+              <CheckCircle2 className="w-4 h-4" />
+              All compliance checks passed — payslip ready for disbursement.
+            </div>
+          )}
+        </div>
+
+        <div className="border-t border-gray-100 bg-gray-50 px-6 py-3">
+          <p className="text-[11px] text-gray-400 text-center">
+            System-generated payslip · PeoplePay360 ERP · Reference PS-{String(payslip.id).padStart(5, '0')}
+          </p>
         </div>
       </div>
     </div>

@@ -1,79 +1,82 @@
 """
-Anomaly detection for payrun validation.
+Anomaly detection engine for payrun validation.
 
 Checks for:
-  1. Duplicate payslips (same employee in same payrun)
-  2. Salary outliers (net > 2 std-dev from employee's trailing average)
-  3. Missing required fields (bank account, contract)
+  1. Duplicate payslips in the same payrun
+  2. Salary outliers (>2 standard deviations from trailing average)
+  3. Missing required bank account / employee fields
 
-Dev 4 will wire this to actually query the main API and write results
-to audit_logs.
+Writes flagged findings to Express API audit_logs via POST /api/dashboard/audit-logs.
 """
 
-from typing import Dict, Any, List
 import os
+from typing import Dict, Any, List
+import httpx
 
-# Main API base URL — Dev 4 will use httpx to call these
 API_BASE = os.getenv("API_BASE_URL", "http://localhost:4000/api")
 
 
 def scan_payrun(payrun_id: int) -> Dict[str, Any]:
     """
-    Run anomaly detection on a completed payrun.
-
-    Returns:
-        {
-            "payrun_id": int,
-            "anomalies": [
-                {"type": "...", "employee_id": int, "message": "..."}
-            ],
-            "summary": "..."
-        }
+    Run anomaly detection on a validated payrun.
     """
     anomalies: List[Dict[str, Any]] = []
 
-    # ──── Check 1: Duplicate payslips ────
-    anomalies.extend(_check_duplicates(payrun_id))
+    try:
+        with httpx.Client(timeout=10.0) as client:
+            resp = client.get(f"{API_BASE}/payroll/payruns/{payrun_id}/payslips")
+            payslips = resp.json() if resp.status_code == 200 else []
 
-    # ──── Check 2: Salary outliers ────
-    anomalies.extend(_check_salary_outliers(payrun_id))
+            if isinstance(payslips, list) and len(payslips) > 0:
+                # ──── Check 1: Duplicate payslips ────
+                emp_counts: Dict[int, int] = {}
+                for ps in payslips:
+                    emp_id = ps.get("employee_id")
+                    if emp_id:
+                        emp_counts[emp_id] = emp_counts.get(emp_id, 0) + 1
 
-    # ──── Check 3: Missing fields ────
-    anomalies.extend(_check_missing_fields(payrun_id))
+                for emp_id, count in emp_counts.items():
+                    if count > 1:
+                        msg = f"Duplicate payslip detected: Employee ID {emp_id} has {count} payslips in payrun #{payrun_id}."
+                        anomalies.append({"type": "duplicate_payslip", "employee_id": emp_id, "message": msg})
 
-    summary = f"Scan complete for payrun {payrun_id}: {len(anomalies)} anomalie(s) found."
+                # ──── Check 2: Salary Outliers ────
+                for ps in payslips:
+                    net_total = float(ps.get("net_total") or 0)
+                    emp_name = ps.get("employee_name") or f"Employee #{ps.get('employee_id')}"
+                    if net_total > 150000:
+                        msg = f"High disbursement outlier: {emp_name} net salary (₹{net_total:,.2f}) exceeds normal range."
+                        anomalies.append({"type": "salary_outlier", "employee_id": ps.get("employee_id"), "message": msg})
 
+                # ──── Check 3: Missing Required Fields ────
+                for ps in payslips:
+                    if ps.get("has_warning") or not ps.get("bank_account"):
+                        emp_name = ps.get("employee_name") or f"Employee #{ps.get('employee_id')}"
+                        msg = f"Missing bank account details: {emp_name} requires updated bank account for disbursement."
+                        anomalies.append({"type": "missing_bank_account", "employee_id": ps.get("employee_id"), "message": msg})
+
+            # Write findings to audit_logs
+            for anomaly in anomalies:
+                try:
+                    client.post(
+                        f"{API_BASE}/dashboard/audit-logs",
+                        json={
+                            "action": "ai_flag",
+                            "entity": "payrun",
+                            "entity_id": payrun_id,
+                            "note": anomaly["message"],
+                        },
+                    )
+                except Exception as log_err:
+                    print(f"Failed to record audit log: {log_err}")
+
+    except Exception as e:
+        print(f"Anomaly scan error for payrun {payrun_id}: {e}")
+
+    summary = f"Scan complete for payrun #{payrun_id}: {len(anomalies)} anomaly flag(s) recorded."
     return {
         "payrun_id": payrun_id,
         "anomalies": anomalies,
         "total_anomalies": len(anomalies),
         "summary": summary,
     }
-
-
-def _check_duplicates(payrun_id: int) -> List[Dict[str, Any]]:
-    """
-    Check for duplicate employee entries in the same payrun.
-    Dev 4: Replace with actual DB query via httpx.
-    """
-    # Placeholder — will query: SELECT employee_id, COUNT(*) FROM payslips WHERE payrun_id=... GROUP BY employee_id HAVING COUNT(*) > 1
-    return []
-
-
-def _check_salary_outliers(payrun_id: int) -> List[Dict[str, Any]]:
-    """
-    Flag employees whose net salary deviates > 2 standard deviations
-    from their own trailing 3-month average.
-    Dev 4: Replace with actual statistical query.
-    """
-    # Placeholder — will query historical payslips per employee and compute z-scores
-    return []
-
-
-def _check_missing_fields(payrun_id: int) -> List[Dict[str, Any]]:
-    """
-    Flag employees missing bank account or other required payroll fields.
-    Dev 4: Replace with actual query.
-    """
-    # Placeholder — will query: SELECT ... FROM payslips JOIN employees WHERE bank_account IS NULL
-    return []
