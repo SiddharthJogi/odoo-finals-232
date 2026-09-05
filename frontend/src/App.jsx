@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { Routes, Route, Navigate, Link, useLocation, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from './auth/AuthContext';
+import client from './api/client';
 import LoginPage from './auth/LoginPage';
 import { cn } from './lib/utils';
 
@@ -16,6 +17,7 @@ import ScheduleList from './modules/schedules/ScheduleList';
 import ScheduleForm from './modules/schedules/ScheduleForm';
 import UserManagement from './modules/users/UserManagement';
 import logo from '../assets/logo.png';
+import ChangePassword from './auth/ChangePassword';
 
 // Module pages — Dev 2
 import AttendanceList from './modules/attendance/AttendanceList';
@@ -45,6 +47,7 @@ import {
   X,
   LogOut,
   UserCircle,
+  KeyRound,
   Sparkles,
   FileText,
   Calendar,
@@ -308,6 +311,13 @@ function NavBar() {
                       </div>
                     </div>
                     <button
+                      onClick={() => { setUserMenuOpen(false); navigate('/change-password'); }}
+                      className="w-full flex items-center gap-2 px-4 py-3 text-sm text-foreground hover:bg-muted transition text-left font-medium border-b border-border"
+                    >
+                      <KeyRound className="w-4 h-4 text-muted-foreground" />
+                      Change Password
+                    </button>
+                    <button
                       onClick={handleLogout}
                       className="w-full flex items-center gap-2 px-4 py-3 text-sm text-destructive hover:bg-destructive/10 transition text-left font-medium"
                     >
@@ -360,6 +370,13 @@ function NavBar() {
           })}
           <div className="border-t border-slate-700 pt-3 mt-3">
             <button
+              onClick={() => { setMobileOpen(false); navigate('/change-password'); }}
+              className="w-full flex items-center gap-2 px-3 py-2 text-sm text-slate-300 hover:text-white hover:bg-white/5 rounded-lg transition text-left"
+            >
+              <KeyRound className="w-4 h-4" />
+              Change Password
+            </button>
+            <button
               onClick={handleLogout}
               className="w-full flex items-center gap-2 px-3 py-2 text-sm text-red-400 hover:bg-red-900/20 rounded-lg transition"
             >
@@ -369,6 +386,7 @@ function NavBar() {
           </div>
         </div>
       )}
+
     </nav>
   );
 }
@@ -415,6 +433,7 @@ export default function App() {
         <AnimatePresence mode="wait">
           <Routes location={location} key={location.pathname}>
             <Route path="/login" element={<AnimatedRoute><LoginPage /></AnimatedRoute>} />
+            <Route path="/change-password" element={<ProtectedRoute><AnimatedRoute><ChangePassword /></AnimatedRoute></ProtectedRoute>} />
 
             {/* Dev 1: Employees, Contracts, Schedules */}
             <Route path="/" element={<ProtectedRoute><AnimatedRoute><Navigate to="/employees" replace /></AnimatedRoute></ProtectedRoute>} />

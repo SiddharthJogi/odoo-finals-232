@@ -90,6 +90,23 @@ async function updateUserRole(actorId, targetUserId, roleId) {
   return updated;
 }
 
+async function changePassword(userId, currentPassword, newPassword) {
+  const user = await repo.findUserPasswordById(userId);
+  if (!user || !user.is_active) {
+    throw new AuthenticationError('Account is unavailable');
+  }
+
+  const currentPasswordMatches = await bcrypt.compare(currentPassword, user.password_hash);
+  if (!currentPasswordMatches) {
+    throw new ValidationError('Current password is incorrect');
+  }
+
+  const passwordHash = await bcrypt.hash(newPassword, config.bcryptRounds);
+  const updated = await repo.updateUserPassword(userId, passwordHash);
+  if (!updated) throw new NotFoundError('User', userId);
+  return updated;
+}
+
 async function deactivateUser(actorId, targetUserId) {
   if (actorId === targetUserId) {
     throw new ForbiddenError('You cannot revoke your own account');
@@ -374,6 +391,7 @@ module.exports = {
   login,
   createUser,
   updateUserRole,
+  changePassword,
   deactivateUser,
   reactivateUser,
   getUserProfile,

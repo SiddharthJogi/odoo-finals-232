@@ -4,6 +4,7 @@ const {
   loginSchema,
   createUserSchema,
   updateRoleSchema,
+  changePasswordSchema,
   createEmployeeSchema,
   provisionEmployeeSchema,
   updateEmployeeSchema,
@@ -32,6 +33,12 @@ const updateUserRole = asyncHandler(async (req, res) => {
   const data = updateRoleSchema.parse(req.body);
   const user = await service.updateUserRole(req.user.id, parseInt(req.params.id, 10), data.role_id);
   res.json(user);
+});
+
+const changePassword = asyncHandler(async (req, res) => {
+  const data = changePasswordSchema.parse(req.body);
+  const user = await service.changePassword(req.user.id, data.current_password, data.new_password);
+  res.json({ id: user.id, email: user.email, message: 'Password changed successfully' });
 });
 
 const deactivateUser = asyncHandler(async (req, res) => {
@@ -160,6 +167,7 @@ module.exports = {
   login,
   createUser,
   updateUserRole,
+  changePassword,
   deactivateUser,
   reactivateUser,
   getMe,

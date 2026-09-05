@@ -10,6 +10,7 @@ router.post('/auth/login', ctrl.login);
 
 // ───────────── Users (admin only, except /me) ─────────────
 router.get('/users/me', authenticate, ctrl.getMe);
+router.patch('/users/me/password', authenticate, ctrl.changePassword);
 router.get('/users', authenticate, requireRole('admin'), ctrl.listUsers);
 router.post('/users', authenticate, requireRole('admin'), ctrl.createUser);
 router.patch('/users/:id/role', authenticate, requireRole('admin'), ctrl.updateUserRole);
