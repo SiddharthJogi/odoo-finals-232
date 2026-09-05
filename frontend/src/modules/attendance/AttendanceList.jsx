@@ -24,8 +24,15 @@ function formatLocalDate(date) {
 export default function AttendanceList() {
   const { role } = useAuth();
   const [attendances, setAttendances] = useState([]);
+  const [summary, setSummary] = useState({
+    total_records: 0,
+    total_worked_hours: 0,
+    total_overtime_hours: 0,
+    late_count: 0,
+    deduction_events: 0,
+    deducted_leave_days: 0,
+  });
   const [todayAttendances, setTodayAttendances] = useState([]);
-  const [monthAttendances, setMonthAttendances] = useState([]);
   const [employeeCount, setEmployeeCount] = useState(0);
   const [approvedLeaveToday, setApprovedLeaveToday] = useState(0);
   const [loading, setLoading] = useState(true);
@@ -52,22 +59,24 @@ export default function AttendanceList() {
       if (filters.date_from) params.date_from = filters.date_from;
       if (filters.date_to) params.date_to = filters.date_to;
       if (filters.status) params.status = filters.status;
+
       const today = new Date();
       const todayString = formatLocalDate(today);
-      const monthStart = formatLocalDate(new Date(today.getFullYear(), today.getMonth(), 1));
       const tomorrow = new Date(today);
       tomorrow.setDate(tomorrow.getDate() + 1);
       const tomorrowString = formatLocalDate(tomorrow);
-      const [tableRes, todayRes, monthRes, leaveRes, employeeRes] = await Promise.all([
+
+      const [tableRes, summaryRes, todayRes, leaveRes, employeeRes] = await Promise.all([
         client.get('/attendance', { params }),
+        client.get('/attendance/summary', { params }),
         client.get('/attendance', { params: { date_from: todayString, date_to: tomorrowString } }),
-        client.get('/attendance', { params: { date_from: monthStart, date_to: tomorrowString } }),
         client.get('/time-off/requests'),
         role === 'employee' ? Promise.resolve({ data: { total: 1 } }) : client.get('/employees', { params: { limit: 1 } }),
       ]);
+
       setAttendances(tableRes.data);
+      setSummary(summaryRes.data || {});
       setTodayAttendances(todayRes.data);
-      setMonthAttendances(monthRes.data);
       setApprovedLeaveToday(new Set(leaveRes.data.filter((request) => (
         request.status === 'approved' && request.start_date <= todayString && request.end_date >= todayString
       )).map((request) => request.employee_id)).size);
@@ -80,7 +89,6 @@ export default function AttendanceList() {
   };
 
   const presentToday = new Set(todayAttendances.map((attendance) => attendance.employee_id)).size;
-  const totalHoursLogged = monthAttendances.reduce((total, attendance) => total + Number(attendance.worked_hours || 0), 0);
   const presenceRate = employeeCount > 0 ? Math.min(100, Math.round((presentToday / employeeCount) * 100)) : 0;
 
   const handleOpenEdit = (att) => {
@@ -119,10 +127,10 @@ export default function AttendanceList() {
         <div>
           <h1 className="text-2xl font-bold text-gray-900 tracking-tight flex items-center gap-2">
             <Clock className="w-7 h-7 text-indigo-600" />
-            Attendance Logs
+            Attendance Logs & Shift Analytics
           </h1>
           <p className="text-xs text-gray-500 mt-1">
-            {loading ? '...' : `${attendances.length} records loaded`} · Track and manage employee check-ins and working hours
+            {loading ? '...' : `${attendances.length} shift logs loaded`} · Late mark flagging (+15m), overtime, multi-shift totals, and 3-late penalty rules
           </p>
         </div>
         <Link
@@ -135,12 +143,13 @@ export default function AttendanceList() {
       </div>
 
       {/* Management Snapshot */}
-      <section aria-label="Attendance summary" className="space-y-3">
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+      <section aria-label="Attendance summary" className="space-y-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           {[
             { label: 'Present Today', value: presentToday, note: employeeCount ? `of ${employeeCount} active employees` : 'Checked in today', icon: Users, color: 'text-emerald-600', bg: 'bg-emerald-50' },
-            { label: 'On Leave Today', value: approvedLeaveToday, note: 'Approved leave requests', icon: CalendarOff, color: 'text-amber-600', bg: 'bg-amber-50' },
-            { label: 'Total Hours Logged', value: `${totalHoursLogged.toFixed(1)}h`, note: 'Cumulative this month', icon: Timer, color: 'text-indigo-600', bg: 'bg-indigo-50' },
+            { label: 'Total Shift Hours', value: `${summary.total_worked_hours || 0}h`, note: 'Sum across all worked shifts', icon: Timer, color: 'text-indigo-600', bg: 'bg-indigo-50' },
+            { label: 'Late Marks (+15m)', value: summary.late_count || 0, note: 'Check-ins >= 15 min late', icon: Clock, color: 'text-amber-600', bg: 'bg-amber-50' },
+            { label: 'Leave Deducted', value: `-${summary.deducted_leave_days || 0}d`, note: `${summary.deduction_events || 0} penalties (3 lates = -0.5d)`, icon: CalendarOff, color: 'text-rose-600', bg: 'bg-rose-50' },
           ].map(({ label, value, note, icon: Icon, color, bg }) => (
             <div key={label} className="bg-card border border-border rounded-2xl p-5 shadow-sm flex items-start justify-between">
               <div>
@@ -152,6 +161,16 @@ export default function AttendanceList() {
             </div>
           ))}
         </div>
+
+        {summary.deduction_events > 0 && (
+          <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4 flex items-center justify-between text-xs text-amber-900 font-medium shadow-xs">
+            <div className="flex items-center gap-2">
+              <span className="text-base">⚠️</span>
+              <span><strong>Late Mark Rule Active:</strong> Employees accumulating 3 late check-ins (+15 min past schedule) automatically trigger a 0.5-day leave balance deduction. Total deducted: <strong>{summary.deducted_leave_days} days</strong> across {summary.deduction_events} penalty events.</span>
+            </div>
+          </div>
+        )}
+
         <div className="bg-card border border-border rounded-2xl px-5 py-4 shadow-sm">
           <div className="flex items-center justify-between gap-4 mb-2">
             <div className="flex items-center gap-2 text-sm font-bold text-foreground"><Activity className="w-4 h-4 text-emerald-600" /> Attendance health</div>
@@ -194,7 +213,7 @@ export default function AttendanceList() {
             <option value="in_progress">In Progress</option>
             <option value="done">Done</option>
             <option value="corrected">Corrected</option>
-            <option value="flagged">Flagged</option>
+            <option value="flagged">Flagged (Late/Violation)</option>
           </select>
         </div>
       </div>
@@ -211,7 +230,7 @@ export default function AttendanceList() {
                 <th className="px-6 py-4">Check In</th>
                 <th className="px-6 py-4">Check Out</th>
                 <th className="px-6 py-4">Worked Hours</th>
-                <th className="px-6 py-4">Status</th>
+                <th className="px-6 py-4">Status & Flags</th>
                 {canEdit && <th className="px-6 py-4 text-right">Actions</th>}
               </tr>
             </thead>
@@ -223,7 +242,7 @@ export default function AttendanceList() {
                     {att.job_position && <div className="text-xs text-muted-foreground font-medium mt-0.5">{att.job_position}</div>}
                     {att.scheduled_start && (
                       <div className="text-[10px] uppercase tracking-wider text-muted-foreground font-bold mt-1 bg-muted/50 inline-block px-1.5 py-0.5 rounded">
-                        Shift: {att.scheduled_start.slice(0, 5)} - {att.scheduled_end ? att.scheduled_end.slice(0, 5) : '17:00'}
+                        Shift: {att.scheduled_start.slice(0, 5)} - {att.scheduled_end ? att.scheduled_end.slice(0, 5) : '17:00'} ({att.break_minutes || 0}m break)
                       </div>
                     )}
                   </td>
@@ -231,7 +250,7 @@ export default function AttendanceList() {
                     <div>{new Date(att.check_in).toLocaleString()}</div>
                     {att.is_late && (
                       <span className="inline-flex items-center gap-1 mt-1 px-2 py-0.5 rounded text-[11px] font-semibold bg-amber-100 text-amber-800 border border-amber-200">
-                        ⏰ Late (+{att.late_minutes}m)
+                        ⏰ Late Mark (+{att.late_minutes}m)
                       </span>
                     )}
                   </td>
@@ -239,7 +258,7 @@ export default function AttendanceList() {
                     {att.check_out ? (
                       <div>
                         <div>{new Date(att.check_out).toLocaleString()}</div>
-                        {att.overtime_hours > 0 && (
+                        {att.is_overtime && (
                           <span className="inline-flex items-center gap-1 mt-1 px-2 py-0.5 rounded text-[11px] font-semibold bg-purple-100 text-purple-800 border border-purple-200">
                             ⚡ Overtime (+{att.overtime_hours}h)
                           </span>
@@ -253,7 +272,7 @@ export default function AttendanceList() {
                     {att.worked_hours ? `${Number(att.worked_hours).toFixed(2)}h` : '—'}
                   </td>
                   <td className="px-6 py-4 space-y-1">
-                    <div>
+                    <div className="flex flex-wrap gap-1">
                       <span
                         className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
                           att.status === 'done'
@@ -267,6 +286,11 @@ export default function AttendanceList() {
                       >
                         {att.status}
                       </span>
+                      {att.status === 'flagged' && (
+                        <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold bg-rose-100 text-rose-800 border border-rose-200">
+                          ⚠️ Flagged Late
+                        </span>
+                      )}
                     </div>
                   </td>
                   {canEdit && (

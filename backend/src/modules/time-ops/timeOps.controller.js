@@ -40,6 +40,21 @@ const getActiveAttendance = asyncHandler(async (req, res) => {
   res.json(active);
 });
 
+const getAttendanceSummary = asyncHandler(async (req, res) => {
+  let employeeId = req.query.employee_id ? parseInt(req.query.employee_id, 10) : undefined;
+  if (req.user.role === 'employee') {
+    employeeId = req.user.employeeId;
+  }
+  const filters = {
+    employee_id: employeeId,
+    status: req.query.status,
+    date_from: req.query.date_from,
+    date_to: req.query.date_to,
+  };
+  const summary = await service.getAttendanceSummary(filters);
+  res.json(summary);
+});
+
 const createAttendance = asyncHandler(async (req, res) => {
   const data = createAttendanceSchema.parse(req.body);
   const attendance = await service.createAttendance(data);
@@ -163,6 +178,7 @@ const refuseTimeOffRequest = asyncHandler(async (req, res) => {
 module.exports = {
   listAttendances,
   getActiveAttendance,
+  getAttendanceSummary,
   createAttendance,
   doCheckIn,
   doCheckOut,

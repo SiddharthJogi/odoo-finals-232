@@ -75,7 +75,13 @@ export default function CheckInWidget() {
       setStatus('checked_in');
       setElapsed(0);
       fetchAttendanceHistory();
-      addToast(`Checked in at ${new Date(data.check_in).toLocaleTimeString()}`, 'success');
+      if (data.auto_deducted) {
+        addToast(data.penalty_message || '⚠️ 3 Late Marks Reached: 0.5 Day Leave Auto-Deducted from Allocation Balance', 'warning');
+      } else if (data.is_late) {
+        addToast(`⏰ Checked in late (+${data.late_minutes}m past schedule)`, 'warning');
+      } else {
+        addToast(`Checked in at ${new Date(data.check_in).toLocaleTimeString()}`, 'success');
+      }
     } catch (err) {
       const msg = err.response?.data?.error || 'Check-in failed';
       setError(msg);

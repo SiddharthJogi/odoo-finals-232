@@ -10,6 +10,7 @@ async function findAttendances(filters = {}) {
       e.schedule_id,
       sl.start_time AS scheduled_start,
       sl.end_time AS scheduled_end,
+      COALESCE(sl.break_minutes, 0) AS break_minutes,
       ws.grace_period_minutes,
       ws.overtime_buffer_minutes
     FROM attendances a
@@ -52,6 +53,7 @@ async function findOpenAttendance(employeeId) {
        e.schedule_id,
        sl.start_time AS scheduled_start,
        sl.end_time AS scheduled_end,
+       COALESCE(sl.break_minutes, 0) AS break_minutes,
        ws.grace_period_minutes,
        ws.overtime_buffer_minutes
      FROM attendances a

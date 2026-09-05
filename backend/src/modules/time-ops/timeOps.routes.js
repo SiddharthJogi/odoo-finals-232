@@ -8,6 +8,7 @@ const router = Router();
 // ───────────── Attendance ─────────────
 router.get('/attendance', authenticate, ctrl.listAttendances);
 router.get('/attendance/active', authenticate, ctrl.getActiveAttendance);
+router.get('/attendance/summary', authenticate, ctrl.getAttendanceSummary);
 router.post('/attendance', authenticate, requireRole('admin', 'hr_manager'), ctrl.createAttendance);
 router.post('/attendance/check-in', authenticate, ctrl.doCheckIn);
 router.post('/attendance/check-out', authenticate, ctrl.doCheckOut);

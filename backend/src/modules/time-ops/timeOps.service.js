@@ -5,20 +5,26 @@ const { ValidationError, NotFoundError } = require('../../shared/errors');
 function decorateAttendanceSchedule(att) {
   if (!att) return null;
 
-  // An employee with no assigned schedule has nothing to be compared against — don't
-  // silently borrow another schedule's hours (the old COALESCE(schedule_id, 1) fallback did).
-  if (!att.schedule_id) {
-    return { ...att, is_late: false, late_minutes: 0, overtime_hours: 0 };
-  }
-
   const checkInDate = att.check_in ? new Date(att.check_in) : null;
+  const checkOutDate = att.check_out ? new Date(att.check_out) : null;
   const graceMinutes = att.grace_period_minutes ?? 15;
   const overtimeBufferMinutes = att.overtime_buffer_minutes ?? 15;
+  const breakMins = Number(att.break_minutes || 0);
 
   let isLate = false;
   let lateMinutes = 0;
+  let isOvertime = false;
   let overtimeHours = 0;
+  let workedHours = att.worked_hours ? Number(att.worked_hours) : 0;
 
+  // Calculate actual worked hours minus break duration
+  if (checkInDate && checkOutDate) {
+    const elapsedMs = checkOutDate.getTime() - checkInDate.getTime();
+    const netMins = Math.max(0, Math.floor(elapsedMs / 60000) - breakMins);
+    workedHours = Number((netMins / 60).toFixed(2));
+  }
+
+  // Late mark flagging (+15 min threshold)
   if (checkInDate && att.scheduled_start) {
     const [startH, startM] = att.scheduled_start.split(':').map(Number);
     const schedStart = new Date(checkInDate);
@@ -33,30 +39,39 @@ function decorateAttendanceSchedule(att) {
     }
   }
 
-  if (att.check_out && att.scheduled_end && att.scheduled_start) {
-    const checkOutDate = new Date(att.check_out);
+  // Overtime calculation and flagging
+  if (checkOutDate && att.scheduled_end && att.scheduled_start) {
     const [startH, startM] = att.scheduled_start.split(':').map(Number);
     const [endH, endM] = att.scheduled_end.split(':').map(Number);
     const schedEnd = new Date(checkInDate || checkOutDate);
     schedEnd.setHours(endH, endM, 0, 0);
 
-    // Overnight/night shift: the shift's end time is numerically before its start time
-    // (e.g. 22:00 -> 06:00), so the scheduled end actually falls on the next calendar day.
     const isOvernightShift = endH * 60 + endM <= startH * 60 + startM;
     if (isOvernightShift) {
       schedEnd.setDate(schedEnd.getDate() + 1);
     }
 
+    let schedEndMins = endH * 60 + endM;
+    if (isOvernightShift) schedEndMins += 24 * 60;
+    const scheduledMins = Math.max(0, schedEndMins - (startH * 60 + startM) - breakMins);
+    const scheduledHours = Number((scheduledMins / 60).toFixed(2));
+
     const bufferedEnd = new Date(schedEnd.getTime() + overtimeBufferMinutes * 60000);
     if (checkOutDate > bufferedEnd) {
+      isOvertime = true;
       overtimeHours = Number(((checkOutDate.getTime() - schedEnd.getTime()) / 3600000).toFixed(2));
+    } else if (workedHours > scheduledHours && scheduledHours > 0) {
+      isOvertime = true;
+      overtimeHours = Number((workedHours - scheduledHours).toFixed(2));
     }
   }
 
   return {
     ...att,
+    worked_hours: workedHours,
     is_late: isLate,
     late_minutes: lateMinutes,
+    is_overtime: isOvertime,
     overtime_hours: overtimeHours,
   };
 }
@@ -400,10 +415,50 @@ async function refuseTimeOffRequest(requestId, approvedBy) {
   }
 }
 
+async function getAttendanceSummary(filters = {}) {
+  const attendances = await listAttendances(filters);
+
+  let totalWorkedHours = 0;
+  let totalOvertimeHours = 0;
+  let lateCount = 0;
+  const employeeLateCounts = {};
+
+  for (const att of attendances) {
+    totalWorkedHours += Number(att.worked_hours || 0);
+    if (att.overtime_hours > 0) {
+      totalOvertimeHours += Number(att.overtime_hours || 0);
+    }
+    if (att.is_late) {
+      lateCount++;
+      const empId = att.employee_id;
+      employeeLateCounts[empId] = (employeeLateCounts[empId] || 0) + 1;
+    }
+  }
+
+  let totalDeductedDays = 0;
+  let totalDeductionEvents = 0;
+  for (const empId in employeeLateCounts) {
+    const lates = employeeLateCounts[empId];
+    const events = Math.floor(lates / 3);
+    totalDeductionEvents += events;
+    totalDeductedDays += events * 0.5;
+  }
+
+  return {
+    total_records: attendances.length,
+    total_worked_hours: Number(totalWorkedHours.toFixed(2)),
+    total_overtime_hours: Number(totalOvertimeHours.toFixed(2)),
+    late_count: lateCount,
+    deduction_events: totalDeductionEvents,
+    deducted_leave_days: Number(totalDeductedDays.toFixed(1)),
+  };
+}
+
 module.exports = {
   listAttendances,
   createAttendance,
   getActiveAttendance,
+  getAttendanceSummary,
   checkIn,
   checkOut,
   correctAttendance,
