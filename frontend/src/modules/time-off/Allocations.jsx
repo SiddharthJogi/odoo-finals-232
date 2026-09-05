@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../../auth/AuthContext';
 import client from '../../api/client';
+import { fetchAllEmployees } from '../../api/employees';
 import { CalendarDays, TrendingDown, CheckCircle2, AlertCircle } from 'lucide-react';
 import { motion } from 'framer-motion';
 
@@ -52,13 +53,13 @@ export default function Allocations() {
 
   const fetchOptions = async () => {
     try {
-      const [empRes, typesRes] = await Promise.all([
-        client.get('/employees').catch(() => ({ data: [] })),
+      const [empList, typesRes] = await Promise.all([
+        fetchAllEmployees(),
         client.get('/time-off/types').catch(() => ({ data: [] })),
       ]);
-      setEmployees(empRes.data);
+      setEmployees(empList);
       setTypes(typesRes.data);
-      if (empRes.data.length > 0) setEmployeeId(empRes.data[0].id.toString());
+      if (empList.length > 0) setEmployeeId(empList[0].id.toString());
       if (typesRes.data.length > 0) setTypeId(typesRes.data[0].id.toString());
     } catch (err) {
       console.error('Failed to fetch options', err);

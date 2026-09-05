@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import client from '../../api/client';
 import { useToast } from '../../components/Toast';
-import { UserCircle, ArrowLeft, FileText, Save, Loader2 } from 'lucide-react';
+import { UserCircle, ArrowLeft, FileText, Save, Loader2, Building2, Clock } from 'lucide-react';
 
 export default function EmployeeForm() {
   const { id } = useParams();
@@ -18,13 +18,28 @@ export default function EmployeeForm() {
   const [notice, setNotice] = useState('');
   const [temporaryPassword, setTemporaryPassword] = useState('');
   const [schedules, setSchedules] = useState([]);
+  const [departments, setDepartments] = useState([]);
+  const [currentDepartmentName, setCurrentDepartmentName] = useState('');
+  const [pendingDeptRequest, setPendingDeptRequest] = useState(null);
+  const [deptRequestOpen, setDeptRequestOpen] = useState(false);
+  const [deptRequestTarget, setDeptRequestTarget] = useState('');
+  const [deptRequestSubmitting, setDeptRequestSubmitting] = useState(false);
+
+  const loadPendingDeptRequest = (employeeId) => {
+    client.get('/department-requests', { params: { employee_id: employeeId, status: 'draft' } })
+      .then(({ data }) => setPendingDeptRequest(data[0] || null))
+      .catch(() => {}); // non-critical — only admin/hr_manager can see this anyway
+  };
 
   useEffect(() => {
+    client.get('/departments').then(({ data }) => setDepartments(data)).catch(() => {});
+
     if (isEdit) {
       Promise.all([client.get(`/employees/${id}`), client.get('/schedules')])
         .then(([employeeResponse, scheduleResponse]) => {
           const data = employeeResponse.data;
           setSchedules(scheduleResponse.data.filter((schedule) => schedule.status === 'active' || schedule.id === data.schedule_id));
+          setCurrentDepartmentName(data.department_name || '');
           setForm({
           name: data.name || '',
           email: data.email || '',
@@ -46,6 +61,22 @@ export default function EmployeeForm() {
     }
   }, [id, isEdit]);
 
+  const submitDepartmentChangeRequest = async () => {
+    if (!deptRequestTarget) return;
+    setDeptRequestSubmitting(true);
+    try {
+      await client.post(`/employees/${id}/department-requests`, { department_id: parseInt(deptRequestTarget, 10) });
+      addToast('Department change request submitted for admin approval', 'success');
+      setDeptRequestOpen(false);
+      setDeptRequestTarget('');
+      loadPendingDeptRequest(id);
+    } catch (err) {
+      addToast(err.response?.data?.error || 'Failed to submit department change request', 'error');
+    } finally {
+      setDeptRequestSubmitting(false);
+    }
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
@@ -59,6 +90,8 @@ export default function EmployeeForm() {
       };
       if (isEdit || !form.password) delete payload.password;
       if (isEdit) {
+        // Department is changed only via the admin-approved request flow, never here.
+        delete payload.department_id;
         await client.put(`/employees/${id}`, payload);
         addToast('Employee updated successfully', 'success');
       } else {
@@ -148,7 +181,7 @@ export default function EmployeeForm() {
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Bank Account</label>
-            <input value={form.bank_account} onChange={handleChange('bank_account')} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" />
+            <input value={form.bank_account} onChange={handleChange('bank_account')} required className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" />
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Status</label>
@@ -164,7 +197,65 @@ export default function EmployeeForm() {
               {schedules.map((schedule) => <option key={schedule.id} value={schedule.id}>{schedule.name}</option>)}
             </select>
           </div>
+
+          {!isEdit && (
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Department</label>
+              <select value={form.department_id || ''} onChange={handleChange('department_id')} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none">
+                <option value="">No department assigned</option>
+                {departments.map((dept) => <option key={dept.id} value={dept.id}>{dept.name}</option>)}
+              </select>
+            </div>
+          )}
         </div>
+
+        {isEdit && (
+          <div className="border-t border-gray-100 pt-4">
+            <label className="flex items-center gap-1.5 text-sm font-medium text-gray-700 mb-1">
+              <Building2 className="w-4 h-4 text-gray-400" />
+              Department
+            </label>
+            <p className="text-sm text-gray-900">{currentDepartmentName || <span className="text-gray-400">Unassigned</span>}</p>
+            <p className="text-xs text-gray-500 mt-1">
+              Department changes require admin approval and cannot be edited directly here.
+            </p>
+
+            {pendingDeptRequest ? (
+              <div className="mt-2 flex items-center gap-2 text-xs bg-amber-50 text-amber-800 border border-amber-200 rounded-lg px-3 py-2">
+                <Clock className="w-3.5 h-3.5 shrink-0" />
+                Pending: move to <strong>{pendingDeptRequest.requested_department_name}</strong>, awaiting admin approval
+              </div>
+            ) : deptRequestOpen ? (
+              <div className="mt-2 flex items-center gap-2">
+                <select
+                  value={deptRequestTarget}
+                  onChange={(e) => setDeptRequestTarget(e.target.value)}
+                  className="text-sm px-3 py-1.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+                >
+                  <option value="">Select new department...</option>
+                  {departments.map((dept) => <option key={dept.id} value={dept.id}>{dept.name}</option>)}
+                </select>
+                <button
+                  type="button"
+                  onClick={submitDepartmentChangeRequest}
+                  disabled={!deptRequestTarget || deptRequestSubmitting}
+                  className="text-xs font-semibold px-3 py-1.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 transition"
+                >
+                  {deptRequestSubmitting ? 'Submitting...' : 'Submit Request'}
+                </button>
+                <button type="button" onClick={() => setDeptRequestOpen(false)} className="text-xs text-gray-500 hover:text-gray-700">Cancel</button>
+              </div>
+            ) : (
+              <button
+                type="button"
+                onClick={() => setDeptRequestOpen(true)}
+                className="mt-2 text-xs font-semibold text-blue-600 hover:text-blue-800 transition"
+              >
+                Request Department Change
+              </button>
+            )}
+          </div>
+        )}
 
         <div className="flex justify-end gap-3 pt-4">
           <button type="button" onClick={() => navigate('/employees')} className="px-4 py-2 text-sm text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition">Cancel</button>

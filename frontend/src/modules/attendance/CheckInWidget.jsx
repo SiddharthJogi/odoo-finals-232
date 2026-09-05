@@ -116,7 +116,10 @@ export default function CheckInWidget() {
 
   const shiftStart = activeRecord?.scheduled_start?.slice(0, 5) || '09:00';
   const shiftEnd = activeRecord?.scheduled_end?.slice(0, 5) || '17:00';
-  const shiftHours = Math.max(1, (Number(shiftEnd.slice(0, 2)) + Number(shiftEnd.slice(3, 5)) / 60) - (Number(shiftStart.slice(0, 2)) + Number(shiftStart.slice(3, 5)) / 60));
+  const shiftStartHours = Number(shiftStart.slice(0, 2)) + Number(shiftStart.slice(3, 5)) / 60;
+  let shiftEndHours = Number(shiftEnd.slice(0, 2)) + Number(shiftEnd.slice(3, 5)) / 60;
+  if (shiftEndHours <= shiftStartHours) shiftEndHours += 24; // overnight/night shift rolls into the next day
+  const shiftHours = Math.max(1, shiftEndHours - shiftStartHours);
   const progress = status === 'checked_in' ? Math.min(100, Math.round((elapsed / (shiftHours * 3600)) * 100)) : 0;
   const dateLabel = new Date().toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
   const completedSessions = attendanceHistory.filter((record) => record.check_out).length;
