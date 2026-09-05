@@ -83,15 +83,26 @@ export default function Requests() {
     }
   };
 
-  // Auto calculate duration in days
+  // Auto calculate duration in working days (excluding weekends)
   useEffect(() => {
     if (startDate && endDate) {
       const start = new Date(startDate);
       const end = new Date(endDate);
-      const diffTime = end.getTime() - start.getTime();
-      if (diffTime >= 0) {
-        const days = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1;
-        setDuration(days);
+      if (end >= start) {
+        let workingDays = 0;
+        const cur = new Date(start);
+        cur.setHours(0, 0, 0, 0);
+        const last = new Date(end);
+        last.setHours(0, 0, 0, 0);
+
+        while (cur <= last) {
+          const day = cur.getDay(); // 0 = Sun, 6 = Sat
+          if (day !== 0 && day !== 6) {
+            workingDays++;
+          }
+          cur.setDate(cur.getDate() + 1);
+        }
+        setDuration(workingDays);
       }
     }
   }, [startDate, endDate]);
@@ -430,7 +441,7 @@ export default function Requests() {
                 <div className="p-3 bg-blue-50/70 border border-blue-100 rounded-xl text-xs text-blue-800">
                   <span>Balance Remaining: </span>
                   <span className="font-bold">
-                    {getSelectedTypeAlloc()?.remaining ?? '—'} {getSelectedTypeObj()?.unit}
+                    {getSelectedTypeAlloc() !== null ? Number(getSelectedTypeAlloc()).toFixed(2) : '—'} {getSelectedTypeObj()?.unit}
                   </span>
                 </div>
               )}

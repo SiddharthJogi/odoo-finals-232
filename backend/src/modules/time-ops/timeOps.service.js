@@ -198,6 +198,23 @@ async function listResponsibleUsers() {
   return repo.findResponsibleUsers();
 }
 
+function calculateWorkingDays(startDateStr, endDateStr) {
+  let count = 0;
+  const cur = new Date(startDateStr);
+  const end = new Date(endDateStr);
+  cur.setHours(0, 0, 0, 0);
+  end.setHours(0, 0, 0, 0);
+
+  while (cur <= end) {
+    const dayOfWeek = cur.getDay(); // 0 = Sun, 6 = Sat
+    if (dayOfWeek !== 0 && dayOfWeek !== 6) {
+      count++;
+    }
+    cur.setDate(cur.getDate() + 1);
+  }
+  return count;
+}
+
 async function createTimeOffRequest(data) {
   if (new Date(data.end_date) < new Date(data.start_date)) {
     throw new ValidationError('End date cannot be before start date');
@@ -205,6 +222,9 @@ async function createTimeOffRequest(data) {
 
   const type = await repo.findTimeOffTypeById(data.type_id);
   if (!type) throw new ValidationError('Invalid time off type');
+
+  const calculatedWorkingDays = calculateWorkingDays(data.start_date, data.end_date);
+  const duration = (data.duration && Number(data.duration) < 1) ? Number(data.duration) : calculatedWorkingDays;
 
   // Deferred Time Off check: check if a validated/paid payrun covers the start_date
   const validatedPayrun = await repo.findValidatedPayrunForDate(data.start_date);
@@ -230,13 +250,14 @@ async function createTimeOffRequest(data) {
       throw new ValidationError('No valid allocation found for this leave type');
     }
     const remaining = Number(alloc.allocated) - Number(alloc.taken);
-    if (remaining < data.duration) {
-      throw new ValidationError(`Insufficient leave balance: ${remaining} remaining, ${data.duration} requested`);
+    if (remaining < duration) {
+      throw new ValidationError(`Insufficient leave balance: ${remaining} remaining, ${duration} requested`);
     }
   }
 
   const created = await repo.insertTimeOffRequest({
     ...data,
+    duration,
     is_deferred: isDeferred,
     deferred_to_date: deferredToDate,
     responsible_id: data.responsible_id || null,
