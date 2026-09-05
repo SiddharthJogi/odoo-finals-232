@@ -292,7 +292,7 @@ export default function Requests() {
                     key={date ? date.toISOString() : `empty-${index}`}
                     onClick={date && !isWeekend ? () => handleDayClick(date) : undefined}
                     title={date && !isWeekend ? 'Click to request leave for this date' : date ? 'Weekend — not a working day' : undefined}
-                    className={`min-h-32 border-r border-b border-border p-2 last:border-r-0 transition-colors ${
+                    className={`min-h-32 border-r border-b border-border p-2 last:border-r-0 group transition-colors ${
                       isWeekend ? 'bg-muted/30' : date ? 'cursor-pointer hover:bg-blue-50/50' : ''
                     }`}
                   >
@@ -307,7 +307,7 @@ export default function Requests() {
                               handleDayClick(date);
                             }}
                             title={`Request leave for ${getIsoDateString(date)}`}
-                            className="inline-flex items-center justify-center w-5 h-5 rounded bg-blue-600 text-white hover:bg-blue-700 font-bold text-xs shadow-xs transition"
+                            className="opacity-0 group-hover:opacity-100 inline-flex items-center justify-center w-5 h-5 rounded bg-blue-600 text-white hover:bg-blue-700 font-bold text-xs shadow-xs transition-all"
                           >
                             <Plus className="w-3.5 h-3.5" />
                           </button>
