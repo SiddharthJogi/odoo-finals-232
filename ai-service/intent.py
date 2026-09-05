@@ -29,15 +29,33 @@ def classify_intent(question: str) -> Tuple[str, Dict[str, Any]]:
     q_lower = question.lower().strip()
     params: Dict[str, Any] = {}
 
-    # Check each intent's keywords
-    best_intent = "general_query"
-    best_score = 0
+    # Prefer specific analytical requests over generic salary/payroll words.
+    if any(keyword in q_lower for keyword in INTENT_KEYWORDS["anomaly_report"]):
+        best_intent = "anomaly_report"
+        best_score = 1
+    elif any(keyword in q_lower for keyword in ["trend", "forecast", "projection", "project", "projected", "predict", "next month", "upcoming month"]):
+        best_intent = "trend"
+        best_score = 1
+    elif any(keyword in q_lower for keyword in INTENT_KEYWORDS["department_breakdown"]):
+        best_intent = "department_breakdown"
+        best_score = 1
+    elif any(keyword in q_lower for keyword in INTENT_KEYWORDS["attendance_overview"]):
+        best_intent = "attendance_overview"
+        best_score = 1
+    elif any(keyword in q_lower for keyword in INTENT_KEYWORDS["time_off_summary"]):
+        best_intent = "time_off_summary"
+        best_score = 1
+    else:
+        best_intent = "general_query"
+        best_score = 0
 
-    for intent, keywords in INTENT_KEYWORDS.items():
-        score = sum(1 for kw in keywords if kw in q_lower)
-        if score > best_score:
-            best_score = score
-            best_intent = intent
+    # Check each intent's keywords
+    if best_intent == "general_query":
+        for intent, keywords in INTENT_KEYWORDS.items():
+            score = sum(1 for kw in keywords if kw in q_lower)
+            if score > best_score:
+                best_score = score
+                best_intent = intent
 
     # Extract department name if mentioned
     dept_keywords = ["engineering", "finance", "human resources", "hr", "sales", "marketing"]
