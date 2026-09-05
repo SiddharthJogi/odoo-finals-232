@@ -1,0 +1,41 @@
+const { z } = require('zod');
+
+const createStructureSchema = z.object({
+  name: z.string().min(1).max(120),
+  status: z.enum(['active', 'inactive']).default('active'),
+});
+
+const createRuleSchema = z.object({
+  structure_id: z.number().int().positive(),
+  name: z.string().min(1).max(120),
+  code: z.string().min(1).max(40),
+  category: z.enum(['basic', 'allowance', 'deduction', 'gross', 'net']),
+  sequence: z.number().int().min(0),
+  calc_method: z.enum(['fixed', 'percentage', 'formula']),
+  amount: z.number().optional(),
+  base_code: z.string().max(40).optional(),
+  formula_text: z.string().max(500).optional(),
+});
+
+const createPayrunDraftSchema = z.object({
+  structure_id: z.number().int().positive(),
+  period_start: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  period_end: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  employee_type_filter: z.enum(['full_time', 'contract', 'part_time']).optional(),
+});
+
+const createPayrunSchema = z.object({
+  name: z.string().min(1).max(120),
+  structure_id: z.number().int().positive(),
+  period_start: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  period_end: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  employee_ids: z.array(z.number().int().positive()).min(1),
+  employee_type_filter: z.string().optional(),
+});
+
+module.exports = {
+  createStructureSchema,
+  createRuleSchema,
+  createPayrunDraftSchema,
+  createPayrunSchema,
+};

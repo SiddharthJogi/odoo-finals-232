@@ -1,0 +1,237 @@
+const db = require('../../db');
+
+// ───────────── Roles ─────────────
+async function findAllRoles() {
+  const { rows } = await db.query('SELECT * FROM roles ORDER BY id');
+  return rows;
+}
+
+async function findRoleById(id) {
+  const { rows } = await db.query('SELECT * FROM roles WHERE id = $1', [id]);
+  return rows[0] || null;
+}
+
+// ───────────── Users ─────────────
+async function findUserByEmail(email) {
+  const { rows } = await db.query(
+    `SELECT u.*, r.name AS role
+     FROM users u JOIN roles r ON u.role_id = r.id
+     WHERE u.email = $1`,
+    [email]
+  );
+  return rows[0] || null;
+}
+
+async function findUserById(id) {
+  const { rows } = await db.query(
+    `SELECT u.id, u.email, u.role_id, u.employee_id, u.is_active, u.created_at, r.name AS role
+     FROM users u JOIN roles r ON u.role_id = r.id
+     WHERE u.id = $1`,
+    [id]
+  );
+  return rows[0] || null;
+}
+
+async function insertUser({ email, passwordHash, roleId, employeeId }) {
+  const { rows } = await db.query(
+    `INSERT INTO users (email, password_hash, role_id, employee_id)
+     VALUES ($1, $2, $3, $4)
+     RETURNING id, email, role_id, employee_id, is_active, created_at`,
+    [email, passwordHash, roleId, employeeId || null]
+  );
+  return rows[0];
+}
+
+async function updateUserRole(userId, roleId) {
+  const { rows } = await db.query(
+    `UPDATE users SET role_id = $1 WHERE id = $2
+     RETURNING id, email, role_id, employee_id, is_active`,
+    [roleId, userId]
+  );
+  return rows[0] || null;
+}
+
+// ───────────── Departments ─────────────
+async function findAllDepartments() {
+  const { rows } = await db.query('SELECT * FROM departments ORDER BY id');
+  return rows;
+}
+
+async function insertDepartment({ name, parentId }) {
+  const { rows } = await db.query(
+    'INSERT INTO departments (name, parent_id) VALUES ($1, $2) RETURNING *',
+    [name, parentId || null]
+  );
+  return rows[0];
+}
+
+// ───────────── Employees ─────────────
+async function findAllEmployees(filters = {}) {
+  let sql = 'SELECT * FROM employees WHERE 1=1';
+  const params = [];
+  let idx = 1;
+
+  if (filters.department_id) {
+    sql += ` AND department_id = $${idx++}`;
+    params.push(filters.department_id);
+  }
+  if (filters.status) {
+    sql += ` AND status = $${idx++}`;
+    params.push(filters.status);
+  }
+  if (filters.employee_type) {
+    sql += ` AND employee_type = $${idx++}`;
+    params.push(filters.employee_type);
+  }
+
+  sql += ' ORDER BY id';
+  const { rows } = await db.query(sql, params);
+  return rows;
+}
+
+async function findEmployeeById(id) {
+  const { rows } = await db.query('SELECT * FROM employees WHERE id = $1', [id]);
+  return rows[0] || null;
+}
+
+async function insertEmployee(data) {
+  const { rows } = await db.query(
+    `INSERT INTO employees (name, email, department_id, manager_id, job_position, schedule_id, employee_type, bank_account, status)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+     RETURNING *`,
+    [data.name, data.email, data.department_id || null, data.manager_id || null,
+     data.job_position || null, data.schedule_id || null, data.employee_type,
+     data.bank_account || null, data.status]
+  );
+  return rows[0];
+}
+
+async function updateEmployee(id, data) {
+  const fields = [];
+  const params = [];
+  let idx = 1;
+
+  for (const [key, value] of Object.entries(data)) {
+    fields.push(`${key} = $${idx++}`);
+    params.push(value);
+  }
+  if (fields.length === 0) return findEmployeeById(id);
+
+  params.push(id);
+  const { rows } = await db.query(
+    `UPDATE employees SET ${fields.join(', ')} WHERE id = $${idx} RETURNING *`,
+    params
+  );
+  return rows[0] || null;
+}
+
+// ───────────── Contracts ─────────────
+async function findContractsByEmployee(employeeId) {
+  const { rows } = await db.query(
+    'SELECT * FROM contracts WHERE employee_id = $1 ORDER BY start_date DESC',
+    [employeeId]
+  );
+  return rows;
+}
+
+async function findApplicableContract(employeeId, periodStart, periodEnd) {
+  const { rows } = await db.query(
+    `SELECT * FROM contracts
+     WHERE employee_id = $1
+       AND status = 'active'
+       AND start_date <= $3
+       AND (end_date IS NULL OR end_date >= $2)
+     ORDER BY start_date DESC
+     LIMIT 1`,
+    [employeeId, periodStart, periodEnd]
+  );
+  return rows[0] || null;
+}
+
+async function findOverlappingActiveContracts(employeeId, startDate, endDate, excludeId) {
+  let sql = `SELECT id FROM contracts
+             WHERE employee_id = $1
+               AND status = 'active'
+               AND start_date <= $3
+               AND (end_date IS NULL OR end_date >= $2)`;
+  const params = [employeeId, startDate, endDate || '9999-12-31'];
+  if (excludeId) {
+    sql += ' AND id != $4';
+    params.push(excludeId);
+  }
+  const { rows } = await db.query(sql, params);
+  return rows;
+}
+
+async function insertContract(data) {
+  const { rows } = await db.query(
+    `INSERT INTO contracts (employee_id, department_id, job_position, wage, start_date, end_date, structure_id, schedule_id, status)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+     RETURNING *`,
+    [data.employee_id, data.department_id || null, data.job_position || null,
+     data.wage, data.start_date, data.end_date || null, data.structure_id,
+     data.schedule_id || null, data.status]
+  );
+  return rows[0];
+}
+
+// ───────────── Working Schedules ─────────────
+async function findAllSchedules() {
+  const { rows } = await db.query('SELECT * FROM working_schedules ORDER BY id');
+  return rows;
+}
+
+async function findScheduleById(id) {
+  const { rows } = await db.query('SELECT * FROM working_schedules WHERE id = $1', [id]);
+  return rows[0] || null;
+}
+
+async function insertSchedule({ name, calendarType }) {
+  const { rows } = await db.query(
+    `INSERT INTO working_schedules (name, calendar_type)
+     VALUES ($1, $2) RETURNING *`,
+    [name, calendarType]
+  );
+  return rows[0];
+}
+
+async function findScheduleLines(scheduleId) {
+  const { rows } = await db.query(
+    'SELECT * FROM schedule_lines WHERE schedule_id = $1 ORDER BY day_of_week, start_time',
+    [scheduleId]
+  );
+  return rows;
+}
+
+async function insertScheduleLine({ scheduleId, dayOfWeek, startTime, endTime, breakMinutes }) {
+  const { rows } = await db.query(
+    `INSERT INTO schedule_lines (schedule_id, day_of_week, start_time, end_time, break_minutes)
+     VALUES ($1, $2, $3, $4, $5) RETURNING *`,
+    [scheduleId, dayOfWeek, startTime, endTime, breakMinutes]
+  );
+  return rows[0];
+}
+
+module.exports = {
+  findAllRoles,
+  findRoleById,
+  findUserByEmail,
+  findUserById,
+  insertUser,
+  updateUserRole,
+  findAllDepartments,
+  insertDepartment,
+  findAllEmployees,
+  findEmployeeById,
+  insertEmployee,
+  updateEmployee,
+  findContractsByEmployee,
+  findApplicableContract,
+  findOverlappingActiveContracts,
+  insertContract,
+  findAllSchedules,
+  findScheduleById,
+  insertSchedule,
+  findScheduleLines,
+  insertScheduleLine,
+};
