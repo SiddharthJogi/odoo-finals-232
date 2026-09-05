@@ -1,4 +1,9 @@
-require('dotenv').config({ override: true });
+const path = require('path');
+const dotenv = require('dotenv');
+
+// Load backend/.env first, then fill missing values from the repository root .env.
+dotenv.config({ path: path.resolve(__dirname, '../.env') });
+dotenv.config({ path: path.resolve(__dirname, '../../.env') });
 
 const required = ['DATABASE_URL', 'JWT_SECRET', 'PORT'];
 for (const key of required) {
@@ -19,6 +24,10 @@ module.exports = {
     user: process.env.SMTP_USER,
     pass: process.env.SMTP_PASS,
     from: process.env.SMTP_FROM || 'PeoplePay360 <no-reply@peoplepay360.local>',
+  },
+  resend: {
+    apiKey: process.env.resend_api_key,
+    from: process.env.RESEND_FROM || 'onboarding@resend.dev',
   },
   aiServiceUrl: process.env.AI_SERVICE_URL || 'http://localhost:8001',
   geminiApiKey: process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY || process.env.GOOGLE_AI_STUDIO_API_KEY || process.env.GEMINI_KEY || process.env.API_KEY || '',

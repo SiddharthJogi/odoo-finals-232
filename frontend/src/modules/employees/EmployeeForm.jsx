@@ -49,16 +49,12 @@ export default function EmployeeForm() {
         await client.put(`/employees/${id}`, payload);
         addToast('Employee updated successfully', 'success');
       } else {
-<<<<<<< Updated upstream
-        await client.post('/employees', payload);
-        addToast('Employee created successfully', 'success');
-=======
         const { data } = await client.post('/employees/provision', payload);
         setNotice(data.warning || 'Employee created and login credentials emailed.');
         setTemporaryPassword(data.temporary_password || '');
+        addToast(data.warning || 'Employee created and login credentials emailed.', data.warning ? 'warning' : 'success');
         setLoading(false);
         return;
->>>>>>> Stashed changes
       }
       navigate('/employees');
     } catch (err) {

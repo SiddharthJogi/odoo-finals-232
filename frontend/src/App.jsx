@@ -48,7 +48,12 @@ import {
 } from 'lucide-react';
 
 const NAV_ITEMS = [
-<<<<<<< Updated upstream
+  {
+    path: '/users',
+    label: 'Users',
+    icon: UserCircle,
+    roles: ['admin'],
+  },
   {
     path: '/employees',
     label: 'Employees',
@@ -118,16 +123,6 @@ const NAV_ITEMS = [
     icon: LayoutDashboard,
     roles: ['admin', 'hr_manager', 'hr_payroll_manager', 'hr_payroll_user'],
   },
-=======
-  { path: '/users', label: 'Users', roles: ['admin'] },
-  { path: '/employees', label: 'Employees', roles: ['admin', 'hr_manager', 'hr_payroll_manager', 'hr_payroll_user'] },
-  { path: '/contracts', label: 'Contracts', roles: ['admin', 'hr_manager', 'hr_payroll_manager', 'hr_payroll_user'] },
-  { path: '/schedules', label: 'Schedules', roles: ['admin', 'hr_manager', 'hr_payroll_manager', 'hr_payroll_user'] },
-  { path: '/attendance', label: 'Attendance', roles: ['admin', 'hr_manager', 'hr_payroll_manager', 'hr_payroll_user', 'employee'] },
-  { path: '/time-off', label: 'Time Off', roles: ['admin', 'hr_manager', 'hr_payroll_manager', 'hr_payroll_user', 'employee'] },
-  { path: '/payroll', label: 'Payroll', roles: ['admin', 'hr_payroll_manager', 'hr_payroll_user', 'hr_manager'] },
-  { path: '/dashboard', label: 'Dashboard', roles: ['admin', 'hr_manager', 'hr_payroll_manager', 'hr_payroll_user'] },
->>>>>>> Stashed changes
 ];
 
 const ROLE_BADGE = {
