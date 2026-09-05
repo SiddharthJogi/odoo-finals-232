@@ -36,7 +36,8 @@ export default function AttendanceList() {
   const [employeeCount, setEmployeeCount] = useState(0);
   const [approvedLeaveToday, setApprovedLeaveToday] = useState(0);
   const [loading, setLoading] = useState(true);
-  const [filters, setFilters] = useState({ date_from: '', date_to: '', status: '' });
+  const [filters, setFilters] = useState({ date_from: '', date_to: '', status: '', search: '', department_id: '' });
+  const [departments, setDepartments] = useState([]);
   
   // Correction Modal State
   const [editItem, setEditItem] = useState(null);
@@ -50,7 +51,17 @@ export default function AttendanceList() {
 
   useEffect(() => {
     fetchAttendances();
+    fetchDepartments();
   }, [filters]);
+
+  const fetchDepartments = async () => {
+    try {
+      const { data } = await client.get('/departments');
+      setDepartments(Array.isArray(data) ? data : []);
+    } catch (err) {
+      console.error('Failed to fetch departments', err);
+    }
+  };
 
   const fetchAttendances = async () => {
     setLoading(true);
@@ -59,6 +70,8 @@ export default function AttendanceList() {
       if (filters.date_from) params.date_from = filters.date_from;
       if (filters.date_to) params.date_to = filters.date_to;
       if (filters.status) params.status = filters.status;
+      if (filters.search) params.search = filters.search;
+      if (filters.department_id) params.department_id = filters.department_id;
 
       const today = new Date();
       const todayString = formatLocalDate(today);
@@ -86,6 +99,17 @@ export default function AttendanceList() {
     } finally {
       setLoading(false);
     }
+  };
+
+  const formatWorkedDuration = (att) => {
+    if (!att.check_in || !att.check_out) return '—';
+    const hours = Number(att.worked_hours || 0);
+    if (hours > 0) return `${hours.toFixed(2)}h`;
+    const elapsedMs = new Date(att.check_out).getTime() - new Date(att.check_in).getTime();
+    const mins = Math.floor(elapsedMs / 60000);
+    const secs = Math.floor((elapsedMs % 60000) / 1000);
+    if (mins > 0) return `${mins}m ${secs}s`;
+    return `< 1m (${secs}s)`;
   };
 
   const exportToCSV = () => {
@@ -216,14 +240,39 @@ export default function AttendanceList() {
       </section>
 
       {/* Filter Toolbar */}
-      <div className="bg-card rounded-[2rem] p-6 shadow-sm border border-border grid grid-cols-1 sm:grid-cols-3 gap-6">
+      <div className="bg-card rounded-[2rem] p-6 shadow-sm border border-border grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+        <div>
+          <label className="block text-xs font-bold text-muted-foreground uppercase tracking-widest mb-1.5">Search Employee</label>
+          <input
+            type="text"
+            placeholder="Name or title..."
+            value={filters.search}
+            onChange={(e) => setFilters((f) => ({ ...f, search: e.target.value }))}
+            className="w-full text-sm border-border bg-background rounded-xl focus:ring-primary focus:border-primary px-3 py-2 border transition-shadow"
+          />
+        </div>
+        <div>
+          <label className="block text-xs font-bold text-muted-foreground uppercase tracking-widest mb-1.5">Department</label>
+          <select
+            value={filters.department_id}
+            onChange={(e) => setFilters((f) => ({ ...f, department_id: e.target.value }))}
+            className="w-full text-sm border-border bg-background rounded-xl focus:ring-primary focus:border-primary px-3 py-2 border transition-shadow"
+          >
+            <option value="">All Departments</option>
+            {departments.map((d) => (
+              <option key={d.id} value={d.id}>
+                {d.name}
+              </option>
+            ))}
+          </select>
+        </div>
         <div>
           <label className="block text-xs font-bold text-muted-foreground uppercase tracking-widest mb-1.5">Date From</label>
           <input
             type="date"
             value={filters.date_from}
             onChange={(e) => setFilters((f) => ({ ...f, date_from: e.target.value }))}
-            className="w-full text-sm border-border bg-background rounded-xl focus:ring-primary focus:border-primary px-4 py-2.5 border transition-shadow"
+            className="w-full text-sm border-border bg-background rounded-xl focus:ring-primary focus:border-primary px-3 py-2 border transition-shadow"
           />
         </div>
         <div>
@@ -232,7 +281,7 @@ export default function AttendanceList() {
             type="date"
             value={filters.date_to}
             onChange={(e) => setFilters((f) => ({ ...f, date_to: e.target.value }))}
-            className="w-full text-sm border-border bg-background rounded-xl focus:ring-primary focus:border-primary px-4 py-2.5 border transition-shadow"
+            className="w-full text-sm border-border bg-background rounded-xl focus:ring-primary focus:border-primary px-3 py-2 border transition-shadow"
           />
         </div>
         <div>
@@ -240,7 +289,7 @@ export default function AttendanceList() {
           <select
             value={filters.status}
             onChange={(e) => setFilters((f) => ({ ...f, status: e.target.value }))}
-            className="w-full text-sm border-border bg-background rounded-xl focus:ring-primary focus:border-primary px-4 py-2.5 border transition-shadow"
+            className="w-full text-sm border-border bg-background rounded-xl focus:ring-primary focus:border-primary px-3 py-2 border transition-shadow"
           >
             <option value="">All Statuses</option>
             <option value="in_progress">In Progress</option>
@@ -306,8 +355,8 @@ export default function AttendanceList() {
                       <span className="text-amber-500 font-sans font-semibold">Active</span>
                     )}
                   </td>
-                  <td className="px-6 py-4 text-gray-700 font-semibold">
-                    {att.worked_hours ? `${Number(att.worked_hours).toFixed(2)}h` : '—'}
+                  <td className="px-6 py-4 text-gray-700 font-semibold font-mono text-xs">
+                    {formatWorkedDuration(att)}
                   </td>
                   <td className="px-6 py-4 space-y-1">
                     <div className="flex flex-wrap gap-1">

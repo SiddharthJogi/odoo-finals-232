@@ -30,6 +30,15 @@ async function findAttendances(filters = {}) {
     sql += ` AND a.employee_id = $${idx++}`;
     params.push(filters.employee_id);
   }
+  if (filters.department_id) {
+    sql += ` AND e.department_id = $${idx++}`;
+    params.push(filters.department_id);
+  }
+  if (filters.search) {
+    sql += ` AND (e.name ILIKE $${idx} OR e.job_position ILIKE $${idx})`;
+    idx++;
+    params.push(`%${filters.search}%`);
+  }
   if (filters.status) {
     sql += ` AND a.status = $${idx++}`;
     params.push(filters.status);
@@ -131,9 +140,22 @@ async function insertTimeOffType(data) {
 // ───────────── Allocations ─────────────
 async function findAllocations(filters = {}) {
   let sql = `
-    SELECT al.*, e.name AS employee_name, t.name AS type_name, t.unit AS type_unit
+    SELECT 
+      al.id,
+      al.employee_id,
+      al.type_id,
+      al.allocated,
+      al.taken,
+      al.status,
+      TO_CHAR(al.valid_from, 'YYYY-MM-DD') AS valid_from,
+      TO_CHAR(al.valid_to, 'YYYY-MM-DD') AS valid_to,
+      e.name AS employee_name, 
+      d.name AS department_name,
+      t.name AS type_name, 
+      t.unit AS type_unit
     FROM allocations al
     LEFT JOIN employees e ON al.employee_id = e.id
+    LEFT JOIN departments d ON e.department_id = d.id
     LEFT JOIN time_off_types t ON al.type_id = t.id
     WHERE 1=1
   `;
@@ -147,6 +169,10 @@ async function findAllocations(filters = {}) {
   if (filters.type_id) {
     sql += ` AND al.type_id = $${idx++}`;
     params.push(filters.type_id);
+  }
+  if (filters.search) {
+    sql += ` AND e.name ILIKE $${idx++}`;
+    params.push(`%${filters.search}%`);
   }
 
   sql += ' ORDER BY al.valid_from DESC';

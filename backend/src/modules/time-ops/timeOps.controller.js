@@ -23,6 +23,8 @@ const listAttendances = asyncHandler(async (req, res) => {
     status: req.query.status,
     date_from: req.query.date_from,
     date_to: req.query.date_to,
+    department_id: req.query.department_id ? parseInt(req.query.department_id, 10) : undefined,
+    search: req.query.search ? req.query.search.trim() : undefined,
   };
   const attendances = await service.listAttendances(filters);
   res.json(attendances);
@@ -112,6 +114,7 @@ const listAllocations = asyncHandler(async (req, res) => {
   const filters = {
     employee_id: employeeId,
     type_id: req.query.type_id ? parseInt(req.query.type_id, 10) : undefined,
+    search: req.query.search ? req.query.search.trim() : undefined,
   };
   const allocations = await service.listAllocations(filters);
   res.json(allocations);
