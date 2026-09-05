@@ -281,6 +281,11 @@ export default function AttendanceList() {
                   </td>
                   <td className="px-6 py-4 text-gray-600 font-mono text-xs">
                     <div>{new Date(att.check_in).toLocaleString()}</div>
+                    {att.is_flex_buffered && (
+                      <span className="inline-flex items-center gap-1 mt-1 px-2 py-0.5 rounded text-[11px] font-semibold bg-indigo-100 text-indigo-800 border border-indigo-200">
+                        🔄 Flex Buffer (+{att.flex_offset_minutes}m shift offset)
+                      </span>
+                    )}
                     {att.is_late && (
                       <span className="inline-flex items-center gap-1 mt-1 px-2 py-0.5 rounded text-[11px] font-semibold bg-amber-100 text-amber-800 border border-amber-200">
                         ⏰ Late Mark (+{att.late_minutes}m)

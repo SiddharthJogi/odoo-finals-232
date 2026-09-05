@@ -11,8 +11,11 @@ async function findAttendances(filters = {}) {
       sl.start_time AS scheduled_start,
       sl.end_time AS scheduled_end,
       COALESCE(sl.break_minutes, 0) AS break_minutes,
+      ws.calendar_type,
+      ws.target_weekly_hours,
       ws.grace_period_minutes,
-      ws.overtime_buffer_minutes
+      ws.overtime_buffer_minutes,
+      COALESCE(ws.flex_buffer_minutes, 60) AS flex_buffer_minutes
     FROM attendances a
     LEFT JOIN employees e ON a.employee_id = e.id
     LEFT JOIN working_schedules ws ON ws.id = e.schedule_id
@@ -54,8 +57,11 @@ async function findOpenAttendance(employeeId) {
        sl.start_time AS scheduled_start,
        sl.end_time AS scheduled_end,
        COALESCE(sl.break_minutes, 0) AS break_minutes,
+       ws.calendar_type,
+       ws.target_weekly_hours,
        ws.grace_period_minutes,
-       ws.overtime_buffer_minutes
+       ws.overtime_buffer_minutes,
+       COALESCE(ws.flex_buffer_minutes, 60) AS flex_buffer_minutes
      FROM attendances a
      LEFT JOIN employees e ON a.employee_id = e.id
      LEFT JOIN working_schedules ws ON ws.id = e.schedule_id

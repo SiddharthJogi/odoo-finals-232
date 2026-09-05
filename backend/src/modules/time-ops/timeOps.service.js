@@ -9,40 +9,33 @@ function decorateAttendanceSchedule(att) {
   const checkOutDate = att.check_out ? new Date(att.check_out) : null;
   const graceMinutes = att.grace_period_minutes ?? 15;
   const overtimeBufferMinutes = att.overtime_buffer_minutes ?? 15;
+  const flexBufferMinutes = att.flex_buffer_minutes ?? 60;
+  const calendarType = att.calendar_type || 'standard';
   const breakMins = Number(att.break_minutes || 0);
 
   let isLate = false;
   let lateMinutes = 0;
   let isOvertime = false;
   let overtimeHours = 0;
+  let isFlexBuffered = false;
+  let flexOffsetMinutes = 0;
   let workedHours = att.worked_hours ? Number(att.worked_hours) : 0;
 
-  // Calculate actual worked hours minus break duration
+  // Calculate actual net worked hours minus break duration
   if (checkInDate && checkOutDate) {
     const elapsedMs = checkOutDate.getTime() - checkInDate.getTime();
     const netMins = Math.max(0, Math.floor(elapsedMs / 60000) - breakMins);
     workedHours = Number((netMins / 60).toFixed(2));
   }
 
-  // Late mark flagging (+15 min threshold)
-  if (checkInDate && att.scheduled_start) {
+  // Handle Fixed / Shift Schedules with Timing Buffer Offset
+  if (checkInDate && att.scheduled_start && att.scheduled_end) {
     const [startH, startM] = att.scheduled_start.split(':').map(Number);
+    const [endH, endM] = att.scheduled_end.split(':').map(Number);
+
     const schedStart = new Date(checkInDate);
     schedStart.setHours(startH, startM, 0, 0);
 
-    const diffMs = checkInDate.getTime() - schedStart.getTime();
-    const diffMins = Math.floor(diffMs / 60000);
-
-    if (diffMins >= graceMinutes) {
-      isLate = true;
-      lateMinutes = diffMins;
-    }
-  }
-
-  // Overtime calculation and flagging
-  if (checkOutDate && att.scheduled_end && att.scheduled_start) {
-    const [startH, startM] = att.scheduled_start.split(':').map(Number);
-    const [endH, endM] = att.scheduled_end.split(':').map(Number);
     const schedEnd = new Date(checkInDate || checkOutDate);
     schedEnd.setHours(endH, endM, 0, 0);
 
@@ -51,18 +44,41 @@ function decorateAttendanceSchedule(att) {
       schedEnd.setDate(schedEnd.getDate() + 1);
     }
 
-    let schedEndMins = endH * 60 + endM;
-    if (isOvernightShift) schedEndMins += 24 * 60;
-    const scheduledMins = Math.max(0, schedEndMins - (startH * 60 + startM) - breakMins);
-    const scheduledHours = Number((scheduledMins / 60).toFixed(2));
+    const diffMs = checkInDate.getTime() - schedStart.getTime();
+    const diffMins = Math.floor(diffMs / 60000);
 
-    const bufferedEnd = new Date(schedEnd.getTime() + overtimeBufferMinutes * 60000);
-    if (checkOutDate > bufferedEnd) {
+    // Flex timing buffer calculation: shift required end time forward
+    let flexShiftMins = 0;
+    if (diffMins > graceMinutes) {
+      if (diffMins <= flexBufferMinutes) {
+        // Within flex timing buffer: shift required end time forward, no late penalty
+        isFlexBuffered = true;
+        flexOffsetMinutes = diffMins;
+        flexShiftMins = diffMins;
+      } else {
+        // Exceeds flex buffer: flag as late, cap flex shift at flexBufferMinutes
+        isLate = true;
+        lateMinutes = diffMins;
+        flexShiftMins = flexBufferMinutes;
+      }
+    }
+
+    const effectiveSchedEnd = new Date(schedEnd.getTime() + flexShiftMins * 60000);
+
+    // Overtime calculation past effective (shifted) schedule end
+    if (checkOutDate) {
+      const bufferedEnd = new Date(effectiveSchedEnd.getTime() + overtimeBufferMinutes * 60000);
+      if (checkOutDate > bufferedEnd) {
+        isOvertime = true;
+        overtimeHours = Number(((checkOutDate.getTime() - effectiveSchedEnd.getTime()) / 3600000).toFixed(2));
+      }
+    }
+  } else if (calendarType === 'flexible' || !att.scheduled_start) {
+    // Flexible Schedule: Evaluate against target daily hours (target_weekly_hours / 5 or 8h)
+    const targetDailyHours = att.target_weekly_hours ? Number(att.target_weekly_hours) / 5 : 8.0;
+    if (checkOutDate && workedHours > targetDailyHours) {
       isOvertime = true;
-      overtimeHours = Number(((checkOutDate.getTime() - schedEnd.getTime()) / 3600000).toFixed(2));
-    } else if (workedHours > scheduledHours && scheduledHours > 0) {
-      isOvertime = true;
-      overtimeHours = Number((workedHours - scheduledHours).toFixed(2));
+      overtimeHours = Number((workedHours - targetDailyHours).toFixed(2));
     }
   }
 
@@ -73,6 +89,9 @@ function decorateAttendanceSchedule(att) {
     late_minutes: lateMinutes,
     is_overtime: isOvertime,
     overtime_hours: overtimeHours,
+    is_flex_buffered: isFlexBuffered,
+    flex_offset_minutes: flexOffsetMinutes,
+    flex_buffer_minutes: flexBufferMinutes,
   };
 }
 
@@ -455,6 +474,7 @@ async function getAttendanceSummary(filters = {}) {
 }
 
 module.exports = {
+  decorateAttendanceSchedule,
   listAttendances,
   createAttendance,
   getActiveAttendance,
