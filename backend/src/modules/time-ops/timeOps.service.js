@@ -15,10 +15,21 @@ async function createAttendance(data) {
 }
 
 /**
+ * Get open (active) attendance for an employee.
+ */
+async function getActiveAttendance(employeeId) {
+  if (!employeeId) return null;
+  return repo.findOpenAttendance(employeeId);
+}
+
+/**
  * Check-in: creates a new open attendance record.
  * Rejects if the employee already has an open (unclosed) attendance.
  */
 async function checkIn(employeeId) {
+  if (!employeeId) {
+    throw new ValidationError('Employee ID is required for check-in');
+  }
   const open = await repo.findOpenAttendance(employeeId);
   if (open) {
     throw new ValidationError('Employee already has an open attendance — check out first');
@@ -30,6 +41,9 @@ async function checkIn(employeeId) {
  * Check-out: closes the employee's current open attendance record.
  */
 async function checkOut(employeeId) {
+  if (!employeeId) {
+    throw new ValidationError('Employee ID is required for check-out');
+  }
   const open = await repo.findOpenAttendance(employeeId);
   if (!open) {
     throw new ValidationError('No open attendance found — check in first');
@@ -67,6 +81,10 @@ async function listTimeOffRequests(filters) {
 }
 
 async function createTimeOffRequest(data) {
+  if (new Date(data.end_date) < new Date(data.start_date)) {
+    throw new ValidationError('End date cannot be before start date');
+  }
+
   const type = await repo.findTimeOffTypeById(data.type_id);
   if (!type) throw new ValidationError('Invalid time off type');
 
@@ -116,6 +134,17 @@ async function approveTimeOffRequest(requestId, approvedBy) {
     }
 
     const updated = await repo.updateTimeOffRequestStatus(requestId, 'approved', approvedBy, client);
+
+    await repo.insertAuditLog({
+      userId: approvedBy,
+      action: 'approve',
+      entity: 'time_off_requests',
+      entityId: requestId,
+      beforeJson: { status: request.status },
+      afterJson: { status: 'approved' },
+      note: `Approved time off request #${requestId} (${request.duration} ${type.unit})`,
+    }, client);
+
     await client.query('COMMIT');
     return updated;
   } catch (err) {
@@ -152,6 +181,17 @@ async function refuseTimeOffRequest(requestId, approvedBy) {
     }
 
     const updated = await repo.updateTimeOffRequestStatus(requestId, 'refused', approvedBy, client);
+
+    await repo.insertAuditLog({
+      userId: approvedBy,
+      action: 'refuse',
+      entity: 'time_off_requests',
+      entityId: requestId,
+      beforeJson: { status: request.status },
+      afterJson: { status: 'refused' },
+      note: `Refused time off request #${requestId}`,
+    }, client);
+
     await client.query('COMMIT');
     return updated;
   } catch (err) {
@@ -165,6 +205,7 @@ async function refuseTimeOffRequest(requestId, approvedBy) {
 module.exports = {
   listAttendances,
   createAttendance,
+  getActiveAttendance,
   checkIn,
   checkOut,
   correctAttendance,

@@ -6,14 +6,15 @@ const ctrl = require('./timeOps.controller');
 const router = Router();
 
 // ───────────── Attendance ─────────────
-router.get('/attendance', authenticate, requireRole('admin', 'hr_manager', 'hr_payroll_manager', 'hr_payroll_user'), ctrl.listAttendances);
+router.get('/attendance', authenticate, ctrl.listAttendances);
+router.get('/attendance/active', authenticate, ctrl.getActiveAttendance);
 router.post('/attendance', authenticate, requireRole('admin', 'hr_manager'), ctrl.createAttendance);
 router.post('/attendance/check-in', authenticate, ctrl.doCheckIn);
 router.post('/attendance/check-out', authenticate, ctrl.doCheckOut);
 router.patch('/attendance/:id', authenticate, requireRole('admin', 'hr_manager'), ctrl.correctAttendance);
 
 // ───────────── Time Off Types ─────────────
-router.get('/time-off/types', authenticate, requireRole('admin', 'hr_manager', 'hr_payroll_manager', 'hr_payroll_user'), ctrl.listTimeOffTypes);
+router.get('/time-off/types', authenticate, ctrl.listTimeOffTypes);
 router.post('/time-off/types', authenticate, requireRole('admin', 'hr_manager'), ctrl.createTimeOffType);
 
 // ───────────── Allocations ─────────────
