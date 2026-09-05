@@ -604,7 +604,6 @@ export default function Requests() {
                   {leaveMode === 'full_day' ? 'Auto-calculated working days (weekends excluded).' : 'Half-day partial leave locked to 0.5 days.'}
                 </p>
               </div>
-              </div>
 
               <div>
                 <label className="block text-xs font-semibold text-gray-600 mb-1">Responsible Person (for Deferred Time Off)</label>
