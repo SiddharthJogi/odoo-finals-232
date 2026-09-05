@@ -26,22 +26,18 @@ export default function EmployeeForm() {
           const data = employeeResponse.data;
           setSchedules(scheduleResponse.data.filter((schedule) => schedule.status === 'active' || schedule.id === data.schedule_id));
           setForm({
-          name: data.name || '',
-          email: data.email || '',
-          department_id: data.department_id || '',
-          manager_id: data.manager_id || '',
-          job_position: data.job_position || '',
-          employee_type: data.employee_type || 'full_time',
-          bank_account: data.bank_account || '',
-          schedule_id: data.schedule_id || '',
-          status: data.status || 'active',
-<<<<<<< Updated upstream
+            name: data.name || '',
+            email: data.email || '',
+            department_id: data.department_id || '',
+            manager_id: data.manager_id || '',
+            job_position: data.job_position || '',
+            employee_type: data.employee_type || 'full_time',
+            bank_account: data.bank_account || '',
+            schedule_id: data.schedule_id || '',
+            status: data.status || 'active',
+            password: '',
           });
         })
-=======
-          password: '',
-        }))
->>>>>>> Stashed changes
         .catch(() => addToast('Failed to load employee data', 'error'));
     } else {
       client.get('/schedules')

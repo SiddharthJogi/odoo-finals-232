@@ -192,7 +192,19 @@ async function restoreAllocation(allocationId, duration, client) {
 async function findTimeOffRequests(filters = {}) {
   let sql = `
     SELECT 
-      r.*, 
+      r.id,
+      r.employee_id,
+      r.type_id,
+      TO_CHAR(r.start_date, 'YYYY-MM-DD') AS start_date,
+      TO_CHAR(r.end_date, 'YYYY-MM-DD') AS end_date,
+      r.duration,
+      r.status,
+      r.is_deferred,
+      TO_CHAR(r.deferred_to_date, 'YYYY-MM-DD') AS deferred_to_date,
+      r.responsible_id,
+      r.deferral_reason,
+      r.created_at,
+      r.approved_by,
       e.name AS employee_name, 
       d.name AS department_name,
       t.name AS type_name, 
@@ -226,7 +238,19 @@ async function findTimeOffRequests(filters = {}) {
 async function findTimeOffRequestById(id) {
   const { rows } = await db.query(
     `SELECT 
-       r.*, 
+       r.id,
+       r.employee_id,
+       r.type_id,
+       TO_CHAR(r.start_date, 'YYYY-MM-DD') AS start_date,
+       TO_CHAR(r.end_date, 'YYYY-MM-DD') AS end_date,
+       r.duration,
+       r.status,
+       r.is_deferred,
+       TO_CHAR(r.deferred_to_date, 'YYYY-MM-DD') AS deferred_to_date,
+       r.responsible_id,
+       r.deferral_reason,
+       r.created_at,
+       r.approved_by,
        e.name AS employee_name, 
        t.name AS type_name, 
        t.unit AS type_unit,

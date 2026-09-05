@@ -175,6 +175,18 @@ export default function Requests() {
     return r.status === activeTab;
   });
 
+  const getIsoDateString = (val) => {
+    if (!val) return '';
+    if (typeof val === 'string') return val.split('T')[0];
+    if (val instanceof Date) {
+      const y = val.getFullYear();
+      const m = String(val.getMonth() + 1).padStart(2, '0');
+      const d = String(val.getDate()).padStart(2, '0');
+      return `${y}-${m}-${d}`;
+    }
+    return '';
+  };
+
   const getSelectedTypeObj = () => types.find((t) => t.id.toString() === selectedType);
   const getSelectedTypeAlloc = () => {
     const targetEmpId = selectedEmployeeId || user?.employeeId;
@@ -183,7 +195,7 @@ export default function Requests() {
       (a) => a.type_id.toString() === selectedType && a.employee_id.toString() === targetEmpId.toString()
     );
     if (empAllocations.length === 0) return null;
-    return empAllocations.reduce((sum, a) => sum + Number(a.remaining || 0), 0);
+    return empAllocations.reduce((sum, a) => sum + Number(a.remaining !== undefined ? a.remaining : (Number(a.allocated) - Number(a.taken || 0))), 0);
   };
   const pendingCount = requests.filter((r) => r.status === 'draft').length;
   const calendarDays = (() => {
@@ -196,10 +208,19 @@ export default function Requests() {
       return new Date(year, month, index - firstDay + 1);
     });
   })();
-  const calendarRequests = requests.filter((request) => request.status !== 'refused' && request.start_date <= `${calendarMonth.getFullYear()}-${String(calendarMonth.getMonth() + 1).padStart(2, '0')}-${String(new Date(calendarMonth.getFullYear(), calendarMonth.getMonth() + 1, 0).getDate()).padStart(2, '0')}` && request.end_date >= `${calendarMonth.getFullYear()}-${String(calendarMonth.getMonth() + 1).padStart(2, '0')}-01`);
+  const calendarRequests = requests.filter((request) => {
+    if (request.status === 'refused') return false;
+    const startStr = getIsoDateString(request.start_date);
+    const endStr = getIsoDateString(request.end_date);
+    const monthStart = `${calendarMonth.getFullYear()}-${String(calendarMonth.getMonth() + 1).padStart(2, '0')}-01`;
+    const lastDayOfMonth = new Date(calendarMonth.getFullYear(), calendarMonth.getMonth() + 1, 0).getDate();
+    const monthEnd = `${calendarMonth.getFullYear()}-${String(calendarMonth.getMonth() + 1).padStart(2, '0')}-${String(lastDayOfMonth).padStart(2, '0')}`;
+    return startStr <= monthEnd && endStr >= monthStart;
+  });
+
   const handleDayClick = (date) => {
     if (!date) return;
-    const dateString = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+    const dateString = getIsoDateString(date);
     setStartDate(dateString);
     setEndDate(dateString);
     fetchModalOptions();
@@ -209,8 +230,12 @@ export default function Requests() {
   const requestsForDay = (date) => {
     const dayOfWeek = date.getDay(); // 0 = Sun, 6 = Sat
     if (dayOfWeek === 0 || dayOfWeek === 6) return []; // Exclude weekends from displaying leave chips
-    const dateString = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
-    return calendarRequests.filter((request) => request.start_date <= dateString && request.end_date >= dateString);
+    const dateString = getIsoDateString(date);
+    return calendarRequests.filter((request) => {
+      const startStr = getIsoDateString(request.start_date);
+      const endStr = getIsoDateString(request.end_date);
+      return startStr <= dateString && endStr >= dateString;
+    });
   };
 
   return (
@@ -284,8 +309,8 @@ export default function Requests() {
                             <button
                               type="button"
                               onClick={() => handleDayClick(date)}
-                              title={`Request leave starting ${date.toLocaleDateString()}`}
-                              className="opacity-0 group-hover:opacity-100 hover:bg-blue-100 text-blue-600 rounded-md p-1 transition-all"
+                              title={`Request leave starting ${getIsoDateString(date)}`}
+                              className="inline-flex items-center justify-center w-5 h-5 rounded-full text-blue-600 bg-blue-50 hover:bg-blue-600 hover:text-white transition-all shadow-xs"
                             >
                               <Plus className="w-3.5 h-3.5" />
                             </button>
