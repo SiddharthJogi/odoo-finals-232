@@ -36,7 +36,7 @@ export default function EmployeeKanban() {
   useEffect(() => {
     Promise.all([client.get('/employees'), client.get('/departments')])
       .then(([empRes, deptRes]) => {
-        setEmployees(empRes.data);
+        setEmployees(empRes.data.employees || empRes.data);
         setDepartments(deptRes.data);
       })
       .catch(console.error)

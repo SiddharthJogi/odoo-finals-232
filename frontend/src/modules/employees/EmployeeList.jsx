@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import client from '../../api/client';
 import { useToast } from '../../components/Toast';
-import { Users, Search, Filter, Plus, LayoutGrid, List, FileText } from 'lucide-react';
+import { Users, Search, Filter, Plus, LayoutGrid, FileText, ChevronLeft, ChevronRight } from 'lucide-react';
 
 function SkeletonRow() {
   return (
@@ -26,28 +26,32 @@ export default function EmployeeList() {
   const [deptFilter, setDeptFilter] = useState('');
   const [typeFilter, setTypeFilter] = useState('');
   const [statusFilter, setStatusFilter] = useState('active');
+  const [page, setPage] = useState(1);
+  const [pagination, setPagination] = useState({ page: 1, limit: 8, total: 0, totalPages: 0 });
   const { addToast } = useToast();
 
   useEffect(() => {
-    Promise.all([
-      client.get('/employees'),
-      client.get('/departments'),
-    ])
-      .then(([empRes, deptRes]) => {
-        setEmployees(empRes.data);
-        setDepartments(deptRes.data);
+    client.get('/departments')
+      .then(({ data }) => setDepartments(data))
+      .catch(() => addToast('Failed to load departments', 'error'));
+  }, [addToast]);
+
+  useEffect(() => {
+    const params = new URLSearchParams({ page: String(page), limit: '8' });
+    if (search.trim()) params.set('search', search.trim());
+    if (deptFilter) params.set('department_id', deptFilter);
+    if (typeFilter) params.set('employee_type', typeFilter);
+    if (statusFilter) params.set('status', statusFilter);
+
+    setLoading(true);
+    client.get(`/employees?${params.toString()}`)
+      .then(({ data }) => {
+        setEmployees(data.employees || []);
+        setPagination(data.pagination || { page, limit: 8, total: 0, totalPages: 0 });
       })
       .catch(() => addToast('Failed to load employees', 'error'))
       .finally(() => setLoading(false));
-  }, []);
-
-  const filtered = employees.filter((emp) => {
-    if (search && !emp.name.toLowerCase().includes(search.toLowerCase()) && !emp.email?.toLowerCase().includes(search.toLowerCase())) return false;
-    if (deptFilter && String(emp.department_id) !== deptFilter) return false;
-    if (typeFilter && emp.employee_type !== typeFilter) return false;
-    if (statusFilter && emp.status !== statusFilter) return false;
-    return true;
-  });
+  }, [page, search, deptFilter, typeFilter, statusFilter, addToast]);
 
   const TYPE_LABELS = { full_time: 'Full Time', part_time: 'Part Time', contract: 'Contract' };
   const TYPE_STYLES = {
@@ -66,7 +70,7 @@ export default function EmployeeList() {
             Employees
           </h1>
           <p className="text-xs text-gray-500 mt-1">
-            {loading ? '...' : `${filtered.length} of ${employees.length} employees shown`}
+            {loading ? '...' : `${pagination.total} employees found`}
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -100,14 +104,14 @@ export default function EmployeeList() {
             type="text"
             placeholder="Search by name or email..."
             value={search}
-            onChange={(e) => setSearch(e.target.value)}
+            onChange={(e) => { setSearch(e.target.value); setPage(1); }}
             className="w-full text-xs bg-gray-50 border border-gray-200 rounded-lg pl-8 pr-3 py-1.5 text-gray-700 focus:ring-2 focus:ring-blue-500 focus:outline-none"
           />
         </div>
 
         <select
           value={deptFilter}
-          onChange={(e) => setDeptFilter(e.target.value)}
+          onChange={(e) => { setDeptFilter(e.target.value); setPage(1); }}
           className="text-xs bg-gray-50 border border-gray-200 rounded-lg px-2.5 py-1.5 text-gray-700 focus:ring-2 focus:ring-blue-500 focus:outline-none"
         >
           <option value="">All Departments</option>
@@ -118,7 +122,7 @@ export default function EmployeeList() {
 
         <select
           value={typeFilter}
-          onChange={(e) => setTypeFilter(e.target.value)}
+          onChange={(e) => { setTypeFilter(e.target.value); setPage(1); }}
           className="text-xs bg-gray-50 border border-gray-200 rounded-lg px-2.5 py-1.5 text-gray-700 focus:ring-2 focus:ring-blue-500 focus:outline-none"
         >
           <option value="">All Types</option>
@@ -129,7 +133,7 @@ export default function EmployeeList() {
 
         <select
           value={statusFilter}
-          onChange={(e) => setStatusFilter(e.target.value)}
+          onChange={(e) => { setStatusFilter(e.target.value); setPage(1); }}
           className="text-xs bg-gray-50 border border-gray-200 rounded-lg px-2.5 py-1.5 text-gray-700 focus:ring-2 focus:ring-blue-500 focus:outline-none"
         >
           <option value="">All Statuses</option>
@@ -139,7 +143,7 @@ export default function EmployeeList() {
 
         {(search || deptFilter || typeFilter || statusFilter !== 'active') && (
           <button
-            onClick={() => { setSearch(''); setDeptFilter(''); setTypeFilter(''); setStatusFilter('active'); }}
+            onClick={() => { setSearch(''); setDeptFilter(''); setTypeFilter(''); setStatusFilter('active'); setPage(1); }}
             className="text-xs font-semibold text-blue-600 hover:text-blue-800 transition px-2 py-1 hover:bg-blue-50 rounded-lg"
           >
             Clear
@@ -164,7 +168,7 @@ export default function EmployeeList() {
           <tbody className="divide-y divide-gray-200">
             {loading
               ? [...Array(6)].map((_, i) => <SkeletonRow key={i} />)
-              : filtered.map((emp) => (
+              : employees.map((emp) => (
                 <tr key={emp.id} className="hover:bg-gray-50 transition">
                   <td className="px-6 py-4">
                     <Link
@@ -216,7 +220,7 @@ export default function EmployeeList() {
           </tbody>
         </table>
 
-        {!loading && filtered.length === 0 && (
+        {!loading && employees.length === 0 && (
           <div className="py-16 text-center">
             <Users className="w-12 h-12 text-gray-200 mx-auto mb-3" />
             <p className="text-sm font-semibold text-gray-500">No employees match your filters</p>
@@ -224,6 +228,30 @@ export default function EmployeeList() {
           </div>
         )}
       </div>
+
+      {!loading && pagination.totalPages > 0 && (
+        <div className="flex items-center justify-between mt-4 text-xs text-gray-500">
+          <span>Page {pagination.page} of {pagination.totalPages}</span>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setPage((current) => Math.max(current - 1, 1))}
+              disabled={page === 1}
+              className="flex items-center gap-1 px-3 py-1.5 border border-gray-200 rounded-lg font-semibold disabled:opacity-40 disabled:cursor-not-allowed hover:bg-gray-50"
+            >
+              <ChevronLeft className="w-3.5 h-3.5" /> Previous
+            </button>
+            <button
+              type="button"
+              onClick={() => setPage((current) => Math.min(current + 1, pagination.totalPages))}
+              disabled={page >= pagination.totalPages}
+              className="flex items-center gap-1 px-3 py-1.5 border border-gray-200 rounded-lg font-semibold disabled:opacity-40 disabled:cursor-not-allowed hover:bg-gray-50"
+            >
+              Next <ChevronRight className="w-3.5 h-3.5" />
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

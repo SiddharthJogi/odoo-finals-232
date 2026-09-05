@@ -81,13 +81,26 @@ const createDepartment = asyncHandler(async (req, res) => {
 
 // ───────────── Employees ─────────────
 const listEmployees = asyncHandler(async (req, res) => {
+  const page = Math.max(parseInt(req.query.page, 10) || 1, 1);
+  const limit = 8;
   const filters = {
     department_id: req.query.department_id ? parseInt(req.query.department_id, 10) : undefined,
     status: req.query.status,
     employee_type: req.query.employee_type,
+    search: req.query.search?.trim() || undefined,
+    limit,
+    offset: (page - 1) * limit,
   };
-  const employees = await service.listEmployees(filters);
-  res.json(employees);
+  const result = await service.listEmployees(filters);
+  res.json({
+    employees: result.rows,
+    pagination: {
+      page,
+      limit,
+      total: result.total,
+      totalPages: Math.ceil(result.total / limit),
+    },
+  });
 });
 
 const getEmployee = asyncHandler(async (req, res) => {

@@ -21,16 +21,6 @@ async function seed() {
     RESTART IDENTITY CASCADE;
   `);
 
-  // ─────────── Admin user ───────────
-  const adminHash = await bcrypt.hash('admin123', 10);
-  await db.query(
-    `INSERT INTO users (email, password_hash, role_id)
-     VALUES ('admin@peoplepay360.com', $1, 1)
-     ON CONFLICT (email) DO NOTHING`,
-    [adminHash]
-  );
-  console.log('  ✓ Admin user created (admin@peoplepay360.com / admin123)');
-
   // ─────────── Departments ───────────
   const departments = ['Engineering', 'Human Resources', 'Finance'];
   const deptIds = [];
@@ -99,7 +89,7 @@ async function seed() {
     { name: 'Deepika Reddy', email: 'deepika.reddy@company.com', dept: 0, job: 'DevOps Engineer', type: 'full_time', bank: 'KOTAK2233445566', wage: 75000 },
     { name: 'Arjun Mehta', email: 'arjun.mehta@company.com', dept: 1, job: 'HR Manager', type: 'full_time', bank: 'HDFC6677889900', wage: 70000 },
     { name: 'Sneha Iyer', email: 'sneha.iyer@company.com', dept: 1, job: 'HR Executive', type: 'full_time', bank: 'ICICI1234509876', wage: 45000 },
-    { name: 'Rohan Desai', email: 'rohan.desai@company.com', dept: 1, job: 'Recruiter', type: 'contract', bank: null, wage: 35000 },
+    { name: 'Rohan Desai', email: 'rohan.desai@company.com', dept: 1, job: 'Recruiter', type: 'contract', bank: 'ICICI1234509879', wage: 35000 },
     { name: 'Kavita Joshi', email: 'kavita.joshi@company.com', dept: 2, job: 'Finance Manager', type: 'full_time', bank: 'HDFC7788990011', wage: 90000 },
     { name: 'Amit Kulkarni', email: 'amit.kulkarni@company.com', dept: 2, job: 'Accountant', type: 'full_time', bank: 'SBI4455667788', wage: 55000 },
     { name: 'Neha Verma', email: 'neha.verma@company.com', dept: 2, job: 'Payroll Analyst', type: 'full_time', bank: 'AXIS1122009988', wage: 60000 },
@@ -120,6 +110,22 @@ async function seed() {
     empIds.push({ id: rows[0].id, wage: emp.wage });
   }
   console.log(`  ✓ ${employees.length} employees created`);
+
+  // ─────────── Admin employee + user ───────────
+  const { rows: adminEmployeeRows } = await db.query(
+    `INSERT INTO employees (name, email, department_id, job_position, schedule_id, employee_type, bank_account, status)
+     VALUES ('System Administrator', 'admin@peoplepay360.com', $1, 'System Administrator', $2, 'full_time', 'PENDING', 'active')
+     RETURNING id`,
+    [deptIds[1], scheduleId]
+  );
+  const adminHash = await bcrypt.hash('admin123', 10);
+  await db.query(
+    `INSERT INTO users (email, password_hash, role_id, employee_id)
+     VALUES ('admin@peoplepay360.com', $1, 1, $2)
+     ON CONFLICT (email) DO NOTHING`,
+    [adminHash, adminEmployeeRows[0].id]
+  );
+  console.log('  ✓ Admin user created (admin@peoplepay360.com / admin123)');
 
   // ─────────── HR Manager user ───────────
   const hrHash = await bcrypt.hash('hrmanager123', 10);

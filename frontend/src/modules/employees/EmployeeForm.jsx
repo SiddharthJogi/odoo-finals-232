@@ -35,13 +35,9 @@ export default function EmployeeForm() {
           bank_account: data.bank_account || '',
           schedule_id: data.schedule_id || '',
           status: data.status || 'active',
-<<<<<<< Updated upstream
+          password: '',
           });
         })
-=======
-          password: '',
-        }))
->>>>>>> Stashed changes
         .catch(() => addToast('Failed to load employee data', 'error'));
     } else {
       client.get('/schedules')

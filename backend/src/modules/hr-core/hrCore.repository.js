@@ -130,26 +130,46 @@ async function insertDepartment({ name, parentId }) {
 
 // ───────────── Employees ─────────────
 async function findAllEmployees(filters = {}) {
-  let sql = 'SELECT * FROM employees WHERE 1=1';
+  const where = ['1=1'];
   const params = [];
   let idx = 1;
 
   if (filters.department_id) {
-    sql += ` AND department_id = $${idx++}`;
+    where.push(`e.department_id = $${idx++}`);
     params.push(filters.department_id);
   }
   if (filters.status) {
-    sql += ` AND status = $${idx++}`;
+    where.push(`e.status = $${idx++}`);
     params.push(filters.status);
   }
   if (filters.employee_type) {
-    sql += ` AND employee_type = $${idx++}`;
+    where.push(`e.employee_type = $${idx++}`);
     params.push(filters.employee_type);
   }
+  if (filters.search) {
+    where.push(`(e.name ILIKE $${idx} OR e.email ILIKE $${idx})`);
+    params.push(`%${filters.search}%`);
+    idx++;
+  }
 
-  sql += ' ORDER BY id';
-  const { rows } = await db.query(sql, params);
-  return rows;
+  const whereSql = where.join(' AND ');
+  const countResult = await db.query(
+    `SELECT COUNT(*)::int AS total FROM employees e WHERE ${whereSql}`,
+    params
+  );
+  const total = countResult.rows[0].total;
+
+  const dataParams = [...params, filters.limit, filters.offset];
+  const { rows } = await db.query(
+    `SELECT e.*, d.name AS department_name
+     FROM employees e
+     LEFT JOIN departments d ON d.id = e.department_id
+     WHERE ${whereSql}
+     ORDER BY e.id
+     LIMIT $${idx} OFFSET $${idx + 1}`,
+    dataParams
+  );
+  return { rows, total };
 }
 
 async function findEmployeeById(id) {
