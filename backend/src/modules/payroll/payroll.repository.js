@@ -163,13 +163,21 @@ async function findPayrollInputs(employeeId, periodStart, periodEnd) {
         WHERE a.employee_id = $1
           AND a.check_in >= $2::date
           AND a.check_in < ($3::date + interval '1 day')) AS attendance_hours,
-       (SELECT COALESCE(SUM(LEAST(r.end_date, $3::date) - GREATEST(r.start_date, $2::date) + 1), 0)
+       (SELECT COALESCE(SUM(
+          (SELECT COUNT(*)
+           FROM generate_series(GREATEST(r.start_date, $2::date), LEAST(r.end_date, $3::date), interval '1 day') AS days(day)
+           WHERE EXTRACT(ISODOW FROM days.day) < 6)
+        ), 0)
         FROM time_off_requests r
         JOIN time_off_types t ON t.id = r.type_id
         WHERE r.employee_id = $1 AND r.status = 'approved'
           AND t.affects_payroll = false
           AND r.start_date <= $3::date AND r.end_date >= $2::date) AS paid_leave_days,
-       (SELECT COALESCE(SUM(LEAST(r.end_date, $3::date) - GREATEST(r.start_date, $2::date) + 1), 0)
+       (SELECT COALESCE(SUM(
+          (SELECT COUNT(*)
+           FROM generate_series(GREATEST(r.start_date, $2::date), LEAST(r.end_date, $3::date), interval '1 day') AS days(day)
+           WHERE EXTRACT(ISODOW FROM days.day) < 6)
+        ), 0)
         FROM time_off_requests r
         JOIN time_off_types t ON t.id = r.type_id
         WHERE r.employee_id = $1 AND r.status = 'approved'
