@@ -29,8 +29,13 @@ cd ai-service && pip install -r requirements.txt && uvicorn main:app --reload --
 ```
 React SPA → Express API (routes→controllers→services→repositories) → PostgreSQL
                     │                                    ▲
-                    └──────── HTTP only ─────────→ ai-service (FastAPI)
+                    ├──── /api/ai (Node: Gemini + fallback,──→ ai-service (FastAPI:
+                    │      rate-limit/cache, calls dashboard    intent keywords,
+                    │      service for grounding data) ─────→   anomaly scan, forecast)
+                    └──────── HTTP only ─────────────────────────────┘
 ```
+
+Full module-by-module breakdown, file-level responsibilities, edge cases, and a security review live in [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) — that file supersedes the diagram above and the Team Ownership table below wherever they conflict; this README is a quickstart, not the source of truth.
 
 ## Team Ownership
 
