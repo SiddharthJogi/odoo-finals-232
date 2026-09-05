@@ -182,10 +182,17 @@ async function restoreAllocation(allocationId, duration, client) {
 // ───────────── Time Off Requests ─────────────
 async function findTimeOffRequests(filters = {}) {
   let sql = `
-    SELECT r.*, e.name AS employee_name, t.name AS type_name, t.unit AS type_unit
+    SELECT 
+      r.*, 
+      e.name AS employee_name, 
+      t.name AS type_name, 
+      t.unit AS type_unit,
+      COALESCE(re.name, u.email) AS responsible_name
     FROM time_off_requests r
     LEFT JOIN employees e ON r.employee_id = e.id
     LEFT JOIN time_off_types t ON r.type_id = t.id
+    LEFT JOIN users u ON r.responsible_id = u.id
+    LEFT JOIN employees re ON u.employee_id = re.id
     WHERE 1=1
   `;
   const params = [];
@@ -207,10 +214,17 @@ async function findTimeOffRequests(filters = {}) {
 
 async function findTimeOffRequestById(id) {
   const { rows } = await db.query(
-    `SELECT r.*, e.name AS employee_name, t.name AS type_name, t.unit AS type_unit
+    `SELECT 
+       r.*, 
+       e.name AS employee_name, 
+       t.name AS type_name, 
+       t.unit AS type_unit,
+       COALESCE(re.name, u.email) AS responsible_name
      FROM time_off_requests r
      LEFT JOIN employees e ON r.employee_id = e.id
      LEFT JOIN time_off_types t ON r.type_id = t.id
+     LEFT JOIN users u ON r.responsible_id = u.id
+     LEFT JOIN employees re ON u.employee_id = re.id
      WHERE r.id = $1`,
     [id]
   );
@@ -219,11 +233,48 @@ async function findTimeOffRequestById(id) {
 
 async function insertTimeOffRequest(data) {
   const { rows } = await db.query(
-    `INSERT INTO time_off_requests (employee_id, type_id, start_date, end_date, duration, status)
-     VALUES ($1, $2, $3, $4, $5, 'draft') RETURNING *`,
-    [data.employee_id, data.type_id, data.start_date, data.end_date, data.duration]
+    `INSERT INTO time_off_requests (
+       employee_id, type_id, start_date, end_date, duration, status, 
+       is_deferred, deferred_to_date, responsible_id, deferral_reason
+     )
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING *`,
+    [
+      data.employee_id,
+      data.type_id,
+      data.start_date,
+      data.end_date,
+      data.duration,
+      data.status || 'draft',
+      data.is_deferred || false,
+      data.deferred_to_date || null,
+      data.responsible_id || null,
+      data.deferral_reason || null,
+    ]
   );
   return rows[0];
+}
+
+async function findValidatedPayrunForDate(dateStr) {
+  const { rows } = await db.query(
+    `SELECT * FROM payruns
+     WHERE period_start <= $1 AND period_end >= $1
+       AND status IN ('validated', 'paid')
+     ORDER BY period_end DESC LIMIT 1`,
+    [dateStr]
+  );
+  return rows[0] || null;
+}
+
+async function findResponsibleUsers() {
+  const { rows } = await db.query(
+    `SELECT u.id, u.email, r.name AS role_name, COALESCE(e.name, u.email) AS name
+     FROM users u
+     JOIN roles r ON u.role_id = r.id
+     LEFT JOIN employees e ON u.employee_id = e.id
+     WHERE r.name IN ('admin', 'hr_manager', 'hr_payroll_manager')
+     ORDER BY e.name ASC, u.email ASC`
+  );
+  return rows;
 }
 
 async function updateTimeOffRequestStatus(id, status, approvedBy, client) {
@@ -289,4 +340,6 @@ module.exports = {
   findTimeOffTypeById,
   insertAuditLog,
   countLateAttendances,
+  findValidatedPayrunForDate,
+  findResponsibleUsers,
 };

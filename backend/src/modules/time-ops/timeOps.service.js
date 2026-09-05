@@ -194,6 +194,10 @@ async function listTimeOffRequests(filters) {
   return repo.findTimeOffRequests(filters);
 }
 
+async function listResponsibleUsers() {
+  return repo.findResponsibleUsers();
+}
+
 async function createTimeOffRequest(data) {
   if (new Date(data.end_date) < new Date(data.start_date)) {
     throw new ValidationError('End date cannot be before start date');
@@ -201,6 +205,23 @@ async function createTimeOffRequest(data) {
 
   const type = await repo.findTimeOffTypeById(data.type_id);
   if (!type) throw new ValidationError('Invalid time off type');
+
+  // Deferred Time Off check: check if a validated/paid payrun covers the start_date
+  const validatedPayrun = await repo.findValidatedPayrunForDate(data.start_date);
+  
+  let isDeferred = false;
+  let deferredToDate = null;
+  let deferralReason = null;
+
+  if (validatedPayrun) {
+    isDeferred = true;
+    // Next day after validated payrun period_end
+    const endDateObj = new Date(validatedPayrun.period_end);
+    endDateObj.setDate(endDateObj.getDate() + 1);
+    deferredToDate = endDateObj.toISOString().slice(0, 10);
+    
+    deferralReason = `Submitted for a closed/validated pay period (${validatedPayrun.period_start} to ${validatedPayrun.period_end}). Deferred to next pay period starting ${deferredToDate} to avoid cancelling validated payslips.`;
+  }
 
   // If type requires allocation, verify sufficient balance exists
   if (type.requires_allocation) {
@@ -214,7 +235,26 @@ async function createTimeOffRequest(data) {
     }
   }
 
-  return repo.insertTimeOffRequest(data);
+  const created = await repo.insertTimeOffRequest({
+    ...data,
+    is_deferred: isDeferred,
+    deferred_to_date: deferredToDate,
+    responsible_id: data.responsible_id || null,
+    deferral_reason: deferralReason,
+  });
+
+  if (isDeferred) {
+    await repo.insertAuditLog({
+      userId: data.responsible_id || null,
+      action: 'defer_time_off',
+      entity: 'time_off_requests',
+      entityId: created.id,
+      afterJson: { is_deferred: true, deferred_to_date: deferredToDate, responsible_id: data.responsible_id },
+      note: deferralReason,
+    });
+  }
+
+  return created;
 }
 
 /**
@@ -329,6 +369,7 @@ module.exports = {
   createAllocation,
   listTimeOffRequests,
   createTimeOffRequest,
+  listResponsibleUsers,
   approveTimeOffRequest,
   refuseTimeOffRequest,
 };
