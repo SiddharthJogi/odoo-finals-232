@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useAuth } from '../../auth/AuthContext';
 import client from '../../api/client';
 import { useToast } from '../../components/Toast';
-import { Activity, CalendarDays, CheckCircle2, Clock, LogOut, Timer, TrendingUp } from 'lucide-react';
+import { Activity, CalendarDays, CheckCircle2, Clock, History, LogOut, Timer, TrendingUp } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { cn } from '../../lib/utils';
 
@@ -12,11 +12,14 @@ export default function CheckInWidget() {
   const [activeRecord, setActiveRecord] = useState(null);
   const [status, setStatus] = useState('loading');
   const [elapsed, setElapsed] = useState(0);
+  const [attendanceHistory, setAttendanceHistory] = useState([]);
+  const [historyLoading, setHistoryLoading] = useState(true);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
   useEffect(() => {
     fetchActiveStatus();
+    fetchAttendanceHistory();
   }, []);
 
   useEffect(() => {
@@ -51,6 +54,18 @@ export default function CheckInWidget() {
     }
   };
 
+  const fetchAttendanceHistory = async () => {
+    try {
+      setHistoryLoading(true);
+      const { data } = await client.get('/attendance');
+      setAttendanceHistory(Array.isArray(data) ? data : []);
+    } catch (err) {
+      console.error('Failed to fetch attendance history', err);
+    } finally {
+      setHistoryLoading(false);
+    }
+  };
+
   const handleCheckIn = async () => {
     setLoading(true);
     setError('');
@@ -59,6 +74,7 @@ export default function CheckInWidget() {
       setActiveRecord(data);
       setStatus('checked_in');
       setElapsed(0);
+      fetchAttendanceHistory();
       addToast(`Checked in at ${new Date(data.check_in).toLocaleTimeString()}`, 'success');
     } catch (err) {
       const msg = err.response?.data?.error || 'Check-in failed';
@@ -76,6 +92,7 @@ export default function CheckInWidget() {
       const { data } = await client.post('/attendance/check-out', {});
       setActiveRecord(data);
       setStatus('checked_out');
+      fetchAttendanceHistory();
       addToast(`Checked out — ${Number(data.worked_hours || 0).toFixed(1)} hours worked`, 'success');
     } catch (err) {
       const msg = err.response?.data?.error || 'Check-out failed';
@@ -102,6 +119,9 @@ export default function CheckInWidget() {
   const shiftHours = Math.max(1, (Number(shiftEnd.slice(0, 2)) + Number(shiftEnd.slice(3, 5)) / 60) - (Number(shiftStart.slice(0, 2)) + Number(shiftStart.slice(3, 5)) / 60));
   const progress = status === 'checked_in' ? Math.min(100, Math.round((elapsed / (shiftHours * 3600)) * 100)) : 0;
   const dateLabel = new Date().toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+  const completedSessions = attendanceHistory.filter((record) => record.check_out).length;
+  const totalHours = attendanceHistory.reduce((total, record) => total + Number(record.worked_hours || 0), 0);
+  const formatDate = (value) => value ? new Date(value).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '—';
 
   return (
     <div className="max-w-4xl mx-auto py-4 sm:py-8">
@@ -146,6 +166,44 @@ export default function CheckInWidget() {
           </div>
         </div>
       </motion.div>
+
+      <section className="mt-6 bg-card rounded-[2rem] border border-border shadow-lg overflow-hidden">
+        <div className="px-6 sm:px-8 py-5 border-b border-border flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-primary/10 text-primary flex items-center justify-center"><History className="w-5 h-5" /></div>
+            <div><h2 className="text-lg font-extrabold text-foreground">Attendance history</h2><p className="text-xs text-muted-foreground mt-1">Every check-in and check-out recorded for your profile</p></div>
+          </div>
+          <div className="flex items-center gap-2 text-xs font-semibold text-muted-foreground">
+            <span className="px-3 py-2 bg-muted rounded-lg"><strong className="text-foreground">{attendanceHistory.length}</strong> sessions</span>
+            <span className="px-3 py-2 bg-muted rounded-lg"><strong className="text-foreground">{completedSessions}</strong> completed</span>
+            <span className="px-3 py-2 bg-muted rounded-lg"><strong className="text-foreground">{totalHours.toFixed(1)}h</strong> logged</span>
+          </div>
+        </div>
+        {historyLoading ? (
+          <div className="p-8 text-center text-sm text-muted-foreground">Loading attendance history...</div>
+        ) : attendanceHistory.length === 0 ? (
+          <div className="p-8 text-center text-sm text-muted-foreground">No attendance sessions recorded yet.</div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="min-w-full text-left">
+              <thead className="bg-muted/40 text-[10px] uppercase tracking-widest text-muted-foreground font-bold">
+                <tr><th className="px-6 py-3">Date</th><th className="px-6 py-3">Check in</th><th className="px-6 py-3">Check out</th><th className="px-6 py-3">Duration</th><th className="px-6 py-3">Status</th></tr>
+              </thead>
+              <tbody className="divide-y divide-border text-sm">
+                {attendanceHistory.map((record) => (
+                  <tr key={record.id} className="hover:bg-muted/30 transition-colors">
+                    <td className="px-6 py-4 font-semibold text-foreground">{formatDate(record.check_in)}</td>
+                    <td className="px-6 py-4 text-muted-foreground font-mono text-xs">{formatTime(record.check_in)}</td>
+                    <td className="px-6 py-4 text-muted-foreground font-mono text-xs">{formatTime(record.check_out)}</td>
+                    <td className="px-6 py-4 font-bold text-foreground">{record.worked_hours ? `${Number(record.worked_hours).toFixed(2)}h` : 'In progress'}</td>
+                    <td className="px-6 py-4"><span className={cn('inline-flex items-center px-2.5 py-1 rounded-full text-[11px] font-bold', record.check_out ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800')}>{record.check_out ? 'Completed' : 'In progress'}</span></td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </section>
     </div>
   );
 }
