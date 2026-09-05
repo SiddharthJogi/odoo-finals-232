@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useAuth } from '../../auth/AuthContext';
 import client from '../../api/client';
 import { useToast } from '../../components/Toast';
-import { Clock, CheckCircle2, LogOut, Timer } from 'lucide-react';
+import { Activity, CalendarDays, CheckCircle2, Clock, LogOut, Timer, TrendingUp } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { cn } from '../../lib/utils';
 
@@ -10,17 +10,15 @@ export default function CheckInWidget() {
   const { user } = useAuth();
   const { addToast } = useToast();
   const [activeRecord, setActiveRecord] = useState(null);
-  const [status, setStatus] = useState('loading'); // 'loading', 'checked_out', 'checked_in'
-  const [elapsed, setElapsed] = useState(0); // seconds
+  const [status, setStatus] = useState('loading');
+  const [elapsed, setElapsed] = useState(0);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
-  // Fetch active attendance on mount
   useEffect(() => {
     fetchActiveStatus();
   }, []);
 
-  // Timer tick for live check-in elapsed duration
   useEffect(() => {
     let timer;
     if (status === 'checked_in' && activeRecord?.check_in) {
@@ -42,7 +40,7 @@ export default function CheckInWidget() {
         setActiveRecord(data);
         setStatus('checked_in');
       } else {
-        setActiveRecord(null);
+        setActiveRecord(data || null);
         setStatus('checked_out');
       }
     } catch (err) {
@@ -95,146 +93,56 @@ export default function CheckInWidget() {
     return `${hrs.toString().padStart(2, '0')}:${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
   };
 
+  const formatTime = (value) => value
+    ? new Date(value).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+    : '—';
+
+  const shiftStart = activeRecord?.scheduled_start?.slice(0, 5) || '09:00';
+  const shiftEnd = activeRecord?.scheduled_end?.slice(0, 5) || '17:00';
+  const shiftHours = Math.max(1, (Number(shiftEnd.slice(0, 2)) + Number(shiftEnd.slice(3, 5)) / 60) - (Number(shiftStart.slice(0, 2)) + Number(shiftStart.slice(3, 5)) / 60));
+  const progress = status === 'checked_in' ? Math.min(100, Math.round((elapsed / (shiftHours * 3600)) * 100)) : 0;
+  const dateLabel = new Date().toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+
   return (
-    <div className="max-w-xl mx-auto py-8">
-      <motion.div 
-        initial={{ opacity: 0, scale: 0.95 }}
-        animate={{ opacity: 1, scale: 1 }}
-        transition={{ duration: 0.4, ease: "easeOut" }}
-        className="bg-card/80 backdrop-blur-xl rounded-[2rem] shadow-2xl border border-border p-10 text-center relative overflow-hidden"
-      >
-        {/* Top Decorative Glow */}
-        <div className={cn(
-          "absolute -top-24 left-1/2 -translate-x-1/2 w-72 h-72 rounded-full blur-3xl opacity-20 pointer-events-none transition-all duration-700",
-          status === 'checked_in' ? 'bg-emerald-500' : 'bg-primary'
-        )} />
-
+    <div className="max-w-4xl mx-auto py-4 sm:py-8">
+      <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.35, ease: 'easeOut' }} className="bg-card rounded-[2rem] shadow-xl border border-border relative overflow-hidden">
+        <div className={cn('absolute -top-40 right-0 w-96 h-96 rounded-full blur-3xl opacity-20 pointer-events-none', status === 'checked_in' ? 'bg-emerald-500' : 'bg-primary')} />
         <div className="relative z-10">
-          <motion.div 
-            layoutId="status-badge"
-            className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full text-xs font-bold uppercase tracking-widest bg-muted text-muted-foreground mb-8 border border-border"
-          >
-            <span className={cn(
-              "w-2 h-2 rounded-full",
-              status === 'checked_in' ? 'bg-emerald-500 animate-ping' : 'bg-muted-foreground/50'
-            )} />
-            {status === 'checked_in' ? 'Shift In Progress' : 'Not Checked In'}
-          </motion.div>
+          <header className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 px-6 sm:px-8 py-6 border-b border-border">
+            <div className="flex items-center gap-3">
+              <div className={cn('w-11 h-11 rounded-2xl flex items-center justify-center', status === 'checked_in' ? 'bg-emerald-100 text-emerald-700' : 'bg-primary/10 text-primary')}><Clock className="w-5 h-5" /></div>
+              <div><h1 className="text-xl sm:text-2xl font-extrabold text-foreground tracking-tight">Daily attendance</h1><p className="text-xs text-muted-foreground font-medium mt-1">{user?.name || 'Employee'} <span className="mx-1 opacity-50">·</span> {dateLabel}</p></div>
+            </div>
+            <div className="inline-flex self-start sm:self-auto items-center gap-2 px-3 py-2 rounded-full text-[11px] font-bold uppercase tracking-widest bg-muted text-muted-foreground border border-border"><span className={cn('w-2 h-2 rounded-full', status === 'checked_in' ? 'bg-emerald-500 animate-pulse' : 'bg-muted-foreground/50')} />{status === 'checked_in' ? 'Shift in progress' : 'Ready to check in'}</div>
+          </header>
 
-          <h1 className="text-4xl font-extrabold text-foreground tracking-tight mb-2">Daily Attendance</h1>
-          <p className="text-muted-foreground text-sm font-medium">
-            {user?.name || 'Employee'} <span className="opacity-50 mx-1">·</span> {new Date().toLocaleDateString('en-IN', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
-          </p>
+          <div className="p-6 sm:p-8">
+            <AnimatePresence mode="popLayout">
+              {error && <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="mb-6 bg-destructive/10 border border-destructive/20 text-destructive rounded-xl p-4 text-sm text-left flex items-start gap-3"><span className="font-bold mt-0.5">!</span><span className="font-medium">{error}</span></motion.div>}
 
-          <AnimatePresence mode="popLayout">
-            {error && (
-              <motion.div 
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, scale: 0.95 }}
-                className="mt-6 bg-destructive/10 border border-destructive/20 text-destructive rounded-2xl p-4 text-sm text-left flex items-start gap-3"
-              >
-                <span className="font-bold mt-0.5">⚠️</span>
-                <span className="font-medium">{error}</span>
-              </motion.div>
-            )}
-
-            {/* Active Timer Display */}
-            {status === 'checked_in' && activeRecord && (
-              <motion.div 
-                initial={{ opacity: 0, scale: 0.9 }}
-                animate={{ opacity: 1, scale: 1 }}
-                className="my-10 p-8 bg-emerald-50/50 dark:bg-emerald-950/20 border border-emerald-200/50 rounded-[2rem] space-y-4"
-              >
-                <p className="text-xs font-bold text-emerald-700 uppercase tracking-[0.2em]">Time Elapsed</p>
-                <div className="text-6xl font-black text-emerald-900 dark:text-emerald-400 tracking-tighter font-mono my-2 drop-shadow-sm">
-                  {formatElapsed(elapsed)}
+              {status === 'checked_in' && activeRecord && <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className="grid lg:grid-cols-[1.15fr_0.85fr] gap-5">
+                <div className="bg-emerald-50/70 dark:bg-emerald-950/20 border border-emerald-200/70 rounded-2xl p-6 text-left">
+                  <div className="flex items-center justify-between gap-4"><div><p className="text-[11px] font-bold text-emerald-700 uppercase tracking-[0.18em]">Working now</p><p className="text-sm text-emerald-900/70 dark:text-emerald-300/80 mt-1">Time elapsed since check-in</p></div><Activity className="w-5 h-5 text-emerald-600" /></div>
+                  <div className="text-4xl sm:text-5xl font-black text-emerald-950 dark:text-emerald-300 tracking-tight font-mono mt-6">{formatElapsed(elapsed)}</div>
+                  <div className="mt-6"><div className="flex justify-between text-[11px] font-bold text-emerald-800/70 mb-2"><span>Shift progress</span><span>{progress}%</span></div><div className="h-2 bg-emerald-200/70 rounded-full overflow-hidden"><div className="h-full bg-emerald-500 rounded-full transition-all duration-700" style={{ width: `${progress}%` }} /></div></div>
                 </div>
-                <p className="text-sm text-emerald-700/80 font-medium">
-                  Checked in at <span className="font-bold text-emerald-800">{new Date(activeRecord.check_in).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
-                </p>
-                
-                {activeRecord.is_late && (
-                  <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="mt-4 inline-flex items-center gap-2 px-4 py-1.5 bg-amber-100/80 border border-amber-200/50 text-amber-800 rounded-full text-xs font-bold shadow-sm">
-                    <span>⏰</span>
-                    <span>Late Check-in (+{activeRecord.late_minutes}m)</span>
-                  </motion.div>
-                )}
-                {activeRecord.penalty_message && (
-                  <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="mt-3 p-4 bg-destructive/10 border border-destructive/20 text-destructive rounded-2xl text-xs font-bold text-left flex items-center gap-3">
-                    <span className="text-lg">🚨</span>
-                    <span>{activeRecord.penalty_message}</span>
-                  </motion.div>
-                )}
-              </motion.div>
-            )}
-
-            {/* Checked Out Result Display */}
-            {status === 'checked_out' && activeRecord?.check_out && (
-              <motion.div 
-                initial={{ opacity: 0, scale: 0.9 }}
-                animate={{ opacity: 1, scale: 1 }}
-                className="my-10 p-8 bg-primary/5 border border-primary/10 rounded-[2rem] space-y-3"
-              >
-                <div className="w-16 h-16 mx-auto bg-primary text-primary-foreground rounded-full flex items-center justify-center text-3xl font-bold mb-4 shadow-lg shadow-primary/20">
-                  <CheckCircle2 className="w-8 h-8" />
+                <div className="bg-muted/40 border border-border rounded-2xl p-6 text-left space-y-4">
+                  <div className="flex items-center gap-2 text-sm font-bold text-foreground"><CalendarDays className="w-4 h-4 text-primary" /> Today’s shift</div>
+                  <div className="grid grid-cols-2 gap-3"><div className="bg-card rounded-xl p-3 border border-border"><p className="text-[10px] uppercase tracking-widest text-muted-foreground font-bold">Started</p><p className="text-lg font-extrabold text-foreground mt-1">{formatTime(activeRecord.check_in)}</p></div><div className="bg-card rounded-xl p-3 border border-border"><p className="text-[10px] uppercase tracking-widest text-muted-foreground font-bold">Scheduled</p><p className="text-lg font-extrabold text-foreground mt-1">{shiftStart}–{shiftEnd}</p></div></div>
+                  <p className="text-xs text-muted-foreground flex items-center gap-2"><TrendingUp className="w-3.5 h-3.5 text-emerald-600" /> Stay on track to complete your scheduled shift.</p>
                 </div>
-                <p className="text-foreground font-extrabold text-2xl tracking-tight">Shift Completed</p>
-                {activeRecord.worked_hours && (
-                  <p className="text-muted-foreground text-sm font-medium mt-1">
-                    Total Worked: <span className="font-bold text-foreground">{Number(activeRecord.worked_hours).toFixed(2)} hrs</span>
-                  </p>
-                )}
-                
-                <div className="flex flex-col items-center gap-2 mt-4">
-                  {activeRecord.is_late && (
-                    <div className="inline-flex items-center gap-2 px-3 py-1.5 bg-amber-100 border border-amber-200/50 text-amber-800 rounded-full text-xs font-bold">
-                      ⏰ Late Check-In (+{activeRecord.late_minutes}m)
-                    </div>
-                  )}
-                  {activeRecord.overtime_hours > 0 && (
-                    <div className="inline-flex items-center gap-2 px-3 py-1.5 bg-primary/10 border border-primary/20 text-primary rounded-full text-xs font-bold">
-                      ⚡ Overtime Logged (+{activeRecord.overtime_hours} hrs)
-                    </div>
-                  )}
-                </div>
-              </motion.div>
-            )}
-          </AnimatePresence>
+                {activeRecord.is_late && <div className="lg:col-span-2 inline-flex items-center gap-2 px-4 py-3 bg-amber-100/80 border border-amber-200/50 text-amber-800 rounded-xl text-xs font-bold">Late check-in (+{activeRecord.late_minutes}m)</div>}
+                {activeRecord.penalty_message && <div className="lg:col-span-2 p-4 bg-destructive/10 border border-destructive/20 text-destructive rounded-xl text-xs font-bold text-left">{activeRecord.penalty_message}</div>}
+              </motion.div>}
 
-          {/* Buttons */}
-          <div className="mt-10 flex gap-4 justify-center">
-            {status === 'checked_out' || status === 'loading' ? (
-              <motion.button
-                whileHover={{ scale: 1.03 }}
-                whileTap={{ scale: 0.97 }}
-                onClick={handleCheckIn}
-                disabled={loading || status === 'loading'}
-                className="w-full sm:w-auto px-10 py-4 bg-emerald-600 hover:bg-emerald-500 text-white rounded-2xl font-bold shadow-xl shadow-emerald-600/20 disabled:opacity-50 flex items-center justify-center gap-3 text-lg transition-colors"
-              >
-                {loading ? 'Processing...' : (
-                  <>
-                    <Timer className="w-5 h-5" />
-                    Check In Now
-                  </>
-                )}
-              </motion.button>
-            ) : (
-              <motion.button
-                whileHover={{ scale: 1.03 }}
-                whileTap={{ scale: 0.97 }}
-                onClick={handleCheckOut}
-                disabled={loading}
-                className="w-full sm:w-auto px-10 py-4 bg-destructive hover:bg-destructive/90 text-destructive-foreground rounded-2xl font-bold shadow-xl shadow-destructive/20 disabled:opacity-50 flex items-center justify-center gap-3 text-lg transition-colors"
-              >
-                {loading ? 'Processing...' : (
-                  <>
-                    <LogOut className="w-5 h-5" />
-                    Check Out Now
-                  </>
-                )}
-              </motion.button>
-            )}
+              {status === 'checked_out' && activeRecord?.check_out && <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className="grid sm:grid-cols-[auto_1fr] gap-5 items-center p-6 bg-primary/5 border border-primary/10 rounded-2xl text-left">
+                <div className="w-14 h-14 bg-primary text-primary-foreground rounded-2xl flex items-center justify-center shadow-lg shadow-primary/20"><CheckCircle2 className="w-8 h-8" /></div>
+                <div><p className="text-foreground font-extrabold text-xl tracking-tight">Shift completed</p><p className="text-muted-foreground text-sm font-medium mt-1">Total worked: <span className="font-bold text-foreground">{Number(activeRecord.worked_hours || 0).toFixed(2)} hrs</span></p><p className="text-xs text-muted-foreground mt-1">Checked out at {formatTime(activeRecord.check_out)}</p></div>
+                <div className="sm:col-span-2 flex flex-wrap items-center gap-2">{activeRecord.is_late && <span className="inline-flex items-center gap-2 px-3 py-1.5 bg-amber-100 border border-amber-200/50 text-amber-800 rounded-full text-xs font-bold">Late check-in (+{activeRecord.late_minutes}m)</span>}{activeRecord.overtime_hours > 0 && <span className="inline-flex items-center gap-2 px-3 py-1.5 bg-primary/10 border border-primary/20 text-primary rounded-full text-xs font-bold">Overtime (+{activeRecord.overtime_hours} hrs)</span>}</div>
+              </motion.div>}
+            </AnimatePresence>
+
+            <div className="mt-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-t border-border pt-6"><p className="text-xs text-muted-foreground">Your attendance is saved automatically to today’s timesheet.</p>{status === 'checked_out' || status === 'loading' ? <motion.button whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }} onClick={handleCheckIn} disabled={loading || status === 'loading'} className="w-full sm:w-auto px-7 py-3.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl font-bold shadow-lg shadow-emerald-600/20 disabled:opacity-50 flex items-center justify-center gap-2 transition-colors">{loading ? 'Processing...' : <><Timer className="w-5 h-5" /> Check In Now</>}</motion.button> : <motion.button whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }} onClick={handleCheckOut} disabled={loading} className="w-full sm:w-auto px-7 py-3.5 bg-destructive hover:bg-destructive/90 text-destructive-foreground rounded-xl font-bold shadow-lg shadow-destructive/20 disabled:opacity-50 flex items-center justify-center gap-2 transition-colors">{loading ? 'Processing...' : <><LogOut className="w-5 h-5" /> Check Out Now</>}</motion.button>}</div>
           </div>
         </div>
       </motion.div>
