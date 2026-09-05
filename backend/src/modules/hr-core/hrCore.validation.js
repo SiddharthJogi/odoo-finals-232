@@ -7,7 +7,7 @@ const loginSchema = z.object({
 
 const createUserSchema = z.object({
   email: z.string().email(),
-  password: z.string().min(8),
+  password: z.string().min(8).optional(),
   role_id: z.number().int().positive(),
   employee_id: z.number().int().positive().optional(),
 });
@@ -26,6 +26,10 @@ const createEmployeeSchema = z.object({
   employee_type: z.enum(['full_time', 'contract', 'part_time']).default('full_time'),
   bank_account: z.string().max(60).optional(),
   status: z.enum(['active', 'archived']).default('active'),
+});
+
+const provisionEmployeeSchema = createEmployeeSchema.extend({
+  role_id: z.number().int().positive().optional(),
 });
 
 const updateEmployeeSchema = createEmployeeSchema.partial();
@@ -63,6 +67,7 @@ module.exports = {
   createUserSchema,
   updateRoleSchema,
   createEmployeeSchema,
+  provisionEmployeeSchema,
   updateEmployeeSchema,
   createContractSchema,
   createScheduleSchema,

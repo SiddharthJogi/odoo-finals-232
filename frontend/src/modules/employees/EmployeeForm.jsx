@@ -15,6 +15,8 @@ export default function EmployeeForm() {
   });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [notice, setNotice] = useState('');
+  const [temporaryPassword, setTemporaryPassword] = useState('');
 
   useEffect(() => {
     if (isEdit) {
@@ -47,8 +49,12 @@ export default function EmployeeForm() {
         await client.put(`/employees/${id}`, payload);
         addToast('Employee updated successfully', 'success');
       } else {
-        await client.post('/employees', payload);
-        addToast('Employee created successfully', 'success');
+        const { data } = await client.post('/employees/provision', payload);
+        setNotice(data.warning || 'Employee created and login credentials emailed.');
+        setTemporaryPassword(data.temporary_password || '');
+        addToast(data.warning || 'Employee created and login credentials emailed.', data.warning ? 'warning' : 'success');
+        setLoading(false);
+        return;
       }
       navigate('/employees');
     } catch (err) {
@@ -88,6 +94,15 @@ export default function EmployeeForm() {
       </div>
 
       {error && <div className="bg-red-50 text-red-700 rounded-lg px-4 py-3 mb-4 text-sm">{error}</div>}
+      {notice && <div className="bg-yellow-50 text-yellow-800 rounded-lg px-4 py-3 mb-4 text-sm">{notice}</div>}
+      {temporaryPassword && (
+        <div className="bg-blue-50 text-blue-900 rounded-lg px-4 py-3 mb-4 text-sm">
+          <div className="font-semibold">Manual credentials</div>
+          <div className="mt-1">Email: {form.email}</div>
+          <div>Password: <span className="font-mono font-semibold">{temporaryPassword}</span></div>
+          <div className="mt-2 text-xs">Share this password securely and ask the employee to change it after signing in.</div>
+        </div>
+      )}
 
       <form onSubmit={handleSubmit} className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 space-y-4">
         <div className="grid grid-cols-2 gap-4">

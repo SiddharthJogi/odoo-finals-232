@@ -10,8 +10,12 @@ router.post('/auth/login', ctrl.login);
 
 // ───────────── Users (admin only, except /me) ─────────────
 router.get('/users/me', authenticate, ctrl.getMe);
+router.get('/users', authenticate, requireRole('admin'), ctrl.listUsers);
 router.post('/users', authenticate, requireRole('admin'), ctrl.createUser);
 router.patch('/users/:id/role', authenticate, requireRole('admin'), ctrl.updateUserRole);
+router.delete('/users/:id', authenticate, requireRole('admin'), ctrl.deactivateUser);
+router.post('/users/:id/reactivate', authenticate, requireRole('admin'), ctrl.reactivateUser);
+router.get('/roles', authenticate, requireRole('admin'), ctrl.listRoles);
 
 // ───────────── Departments ─────────────
 router.get('/departments', authenticate, requireRole('admin', 'hr_manager', 'hr_payroll_manager', 'hr_payroll_user'), ctrl.listDepartments);
@@ -21,6 +25,7 @@ router.post('/departments', authenticate, requireRole('admin', 'hr_manager'), ct
 router.get('/employees', authenticate, requireRole('admin', 'hr_manager', 'hr_payroll_manager', 'hr_payroll_user'), ctrl.listEmployees);
 router.get('/employees/:id', authenticate, ctrl.getEmployee);
 router.post('/employees', authenticate, requireRole('admin', 'hr_manager'), ctrl.createEmployee);
+router.post('/employees/provision', authenticate, requireRole('admin', 'hr_manager'), ctrl.provisionEmployee);
 router.put('/employees/:id', authenticate, requireRole('admin', 'hr_manager'), ctrl.updateEmployee);
 
 // ───────────── Contracts ─────────────

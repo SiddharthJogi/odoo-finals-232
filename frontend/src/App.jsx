@@ -14,6 +14,7 @@ import ContractList from './modules/contracts/ContractList';
 import ContractForm from './modules/contracts/ContractForm';
 import ScheduleList from './modules/schedules/ScheduleList';
 import ScheduleForm from './modules/schedules/ScheduleForm';
+import UserManagement from './modules/users/UserManagement';
 
 // Module pages — Dev 2
 import AttendanceList from './modules/attendance/AttendanceList';
@@ -49,6 +50,12 @@ import {
 } from 'lucide-react';
 
 const NAV_ITEMS = [
+  {
+    path: '/users',
+    label: 'Users',
+    icon: UserCircle,
+    roles: ['admin'],
+  },
   {
     path: '/employees',
     label: 'Employees',
@@ -397,6 +404,7 @@ export default function App() {
             <Route path="/schedules" element={<ProtectedRoute><AnimatedRoute><ScheduleList /></AnimatedRoute></ProtectedRoute>} />
             <Route path="/schedules/new" element={<ProtectedRoute><AnimatedRoute><ScheduleForm /></AnimatedRoute></ProtectedRoute>} />
             <Route path="/schedules/:id" element={<ProtectedRoute><AnimatedRoute><ScheduleForm /></AnimatedRoute></ProtectedRoute>} />
+            <Route path="/users" element={<ProtectedRoute><AnimatedRoute><UserManagement /></AnimatedRoute></ProtectedRoute>} />
 
             {/* Dev 2: Attendance & Time Off */}
             <Route path="/attendance" element={<ProtectedRoute><AnimatedRoute><AttendanceList /></AnimatedRoute></ProtectedRoute>} />

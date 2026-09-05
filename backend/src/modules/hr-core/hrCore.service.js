@@ -1,7 +1,10 @@
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const config = require('../../config');
+const crypto = require('crypto');
+const db = require('../../db');
 const repo = require('./hrCore.repository');
+const { isConfigured: isMailConfigured, sendWelcomeEmail } = require('./mailer');
 const { ValidationError, AuthenticationError, ForbiddenError, NotFoundError, PayrollError } = require('../../shared/errors');
 
 // ───────────── Auth ─────────────
@@ -33,13 +36,46 @@ async function createUser(data) {
   const role = await repo.findRoleById(data.role_id);
   if (!role) throw new ValidationError('Invalid role_id');
 
-  const passwordHash = await bcrypt.hash(data.password, config.bcryptRounds);
-  return repo.insertUser({
+  if (data.employee_id) {
+    const employee = await repo.findEmployeeById(data.employee_id);
+    if (!employee) throw new ValidationError('Employee not found');
+
+    const linkedUser = await repo.findUserByEmployeeId(data.employee_id);
+    if (linkedUser) throw new ValidationError('Employee already has a user account');
+  }
+
+  const temporaryPassword = data.password || crypto.randomBytes(12).toString('base64url');
+  const passwordHash = await bcrypt.hash(temporaryPassword, config.bcryptRounds);
+  const user = await repo.insertUser({
     email: data.email,
     passwordHash,
     roleId: data.role_id,
     employeeId: data.employee_id,
   });
+
+  if (!isMailConfigured()) {
+    return {
+      ...user,
+      warning: 'User created, but SMTP is not configured. Share these temporary credentials manually.',
+      temporary_password: temporaryPassword,
+    };
+  }
+
+  try {
+    await sendWelcomeEmail({
+      email: data.email,
+      name: data.email,
+      temporaryPassword,
+    });
+    return user;
+  } catch (error) {
+    console.error('User created but welcome email failed:', error);
+    return {
+      ...user,
+      warning: 'User created, but email dispatch failed. Share these temporary credentials manually.',
+      temporary_password: temporaryPassword,
+    };
+  }
 }
 
 async function updateUserRole(actorId, targetUserId, roleId) {
@@ -54,10 +90,66 @@ async function updateUserRole(actorId, targetUserId, roleId) {
   return updated;
 }
 
+async function deactivateUser(actorId, targetUserId) {
+  if (actorId === targetUserId) {
+    throw new ForbiddenError('You cannot revoke your own account');
+  }
+
+  const updated = await repo.deactivateUser(targetUserId);
+  if (!updated) throw new NotFoundError('User', targetUserId);
+  return updated;
+}
+
+async function reactivateUser(actorId, targetUserId) {
+  if (actorId === targetUserId) {
+    throw new ForbiddenError('You cannot reset your own account through this flow');
+  }
+
+  const existing = await repo.findUserById(targetUserId);
+  if (!existing) throw new NotFoundError('User', targetUserId);
+  if (existing.is_active) throw new ValidationError('User account is already active');
+
+  const temporaryPassword = crypto.randomBytes(12).toString('base64url');
+  const passwordHash = await bcrypt.hash(temporaryPassword, config.bcryptRounds);
+  const user = await repo.reactivateUser(targetUserId, passwordHash);
+
+  if (!isMailConfigured()) {
+    return {
+      ...user,
+      warning: 'Account reactivated, but SMTP is not configured. Share these temporary credentials manually.',
+      temporary_password: temporaryPassword,
+    };
+  }
+
+  try {
+    await sendWelcomeEmail({
+      email: user.email,
+      name: user.email,
+      temporaryPassword,
+    });
+    return user;
+  } catch (error) {
+    console.error('Account reactivated but welcome email failed:', error);
+    return {
+      ...user,
+      warning: 'Account reactivated, but email dispatch failed. Share these temporary credentials manually.',
+      temporary_password: temporaryPassword,
+    };
+  }
+}
+
 async function getUserProfile(userId) {
   const user = await repo.findUserById(userId);
   if (!user) throw new NotFoundError('User', userId);
   return user;
+}
+
+async function listAllUsers() {
+  return repo.findAllUsers();
+}
+
+async function listAllRoles() {
+  return repo.findAllRoles();
 }
 
 // ───────────── Departments ─────────────
@@ -82,6 +174,67 @@ async function getEmployee(id) {
 
 async function createEmployee(data) {
   return repo.insertEmployee(data);
+}
+
+async function provisionEmployee(actor, data) {
+  const employeeRole = await repo.findRoleByName('employee');
+  if (!employeeRole) throw new ValidationError('Employee role is not configured');
+
+  let roleId = employeeRole.id;
+  if (data.role_id) {
+    if (actor.role !== 'admin') {
+      throw new ForbiddenError('Only admins may assign elevated roles');
+    }
+    const role = await repo.findRoleById(data.role_id);
+    if (!role) throw new ValidationError('Invalid role_id');
+    roleId = role.id;
+  }
+
+  const existingUser = await repo.findUserByEmail(data.email);
+  if (existingUser) throw new ValidationError('Email already has a user account');
+
+  const temporaryPassword = crypto.randomBytes(12).toString('base64url');
+  const passwordHash = await bcrypt.hash(temporaryPassword, config.bcryptRounds);
+  const client = await db.getClient();
+  let created;
+  try {
+    await client.query('BEGIN');
+    created = await repo.insertEmployeeAndUser(client, {
+      employee: data,
+      passwordHash,
+      roleId,
+    });
+    await client.query('COMMIT');
+  } catch (error) {
+    await client.query('ROLLBACK');
+    throw error;
+  } finally {
+    client.release();
+  }
+
+  if (!isMailConfigured()) {
+    return {
+      ...created,
+      warning: 'Employee created, but SMTP is not configured. Share these temporary credentials manually.',
+      temporary_password: temporaryPassword,
+    };
+  }
+
+  try {
+    await sendWelcomeEmail({
+      email: data.email,
+      name: data.name,
+      temporaryPassword,
+    });
+    return created;
+  } catch (error) {
+    console.error('Employee created but welcome email failed:', error);
+    return {
+      ...created,
+      warning: 'Employee created, but email dispatch failed. Share these temporary credentials manually.',
+      temporary_password: temporaryPassword,
+    };
+  }
 }
 
 async function updateEmployee(id, data) {
@@ -179,12 +332,17 @@ module.exports = {
   login,
   createUser,
   updateUserRole,
+  deactivateUser,
+  reactivateUser,
   getUserProfile,
+  listAllUsers,
+  listAllRoles,
   listDepartments,
   createDepartment,
   listEmployees,
   getEmployee,
   createEmployee,
+  provisionEmployee,
   updateEmployee,
   listAllContracts,
   listContractsByEmployee,
