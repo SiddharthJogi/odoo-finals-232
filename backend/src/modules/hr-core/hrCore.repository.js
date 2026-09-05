@@ -198,6 +198,17 @@ async function findAllContracts() {
   return rows;
 }
 
+async function findContractById(id) {
+  const { rows } = await db.query(
+    `SELECT c.*, e.name as employee_name
+     FROM contracts c
+     JOIN employees e ON c.employee_id = e.id
+     WHERE c.id = $1`,
+    [id]
+  );
+  return rows[0] || null;
+}
+
 async function findContractsByEmployee(employeeId) {
   const { rows } = await db.query(
     'SELECT * FROM contracts WHERE employee_id = $1 ORDER BY start_date DESC',
@@ -245,6 +256,24 @@ async function insertContract(data) {
      data.schedule_id || null, data.status]
   );
   return rows[0];
+}
+
+async function updateContract(id, data) {
+  const fields = [];
+  const params = [];
+
+  for (const [key, value] of Object.entries(data)) {
+    fields.push(`${key} = $${params.length + 1}`);
+    params.push(value);
+  }
+  if (fields.length === 0) return findContractById(id);
+
+  params.push(id);
+  const { rows } = await db.query(
+    `UPDATE contracts SET ${fields.join(', ')} WHERE id = $${params.length} RETURNING *`,
+    params
+  );
+  return rows[0] || null;
 }
 
 // ───────────── Working Schedules ─────────────
@@ -304,10 +333,12 @@ module.exports = {
   insertEmployeeAndUser,
   updateEmployee,
   findAllContracts,
+  findContractById,
   findContractsByEmployee,
   findApplicableContract,
   findOverlappingActiveContracts,
   insertContract,
+  updateContract,
   findAllSchedules,
   findScheduleById,
   insertSchedule,
