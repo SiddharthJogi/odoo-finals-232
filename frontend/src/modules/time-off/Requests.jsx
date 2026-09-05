@@ -197,7 +197,18 @@ export default function Requests() {
     });
   })();
   const calendarRequests = requests.filter((request) => request.status !== 'refused' && request.start_date <= `${calendarMonth.getFullYear()}-${String(calendarMonth.getMonth() + 1).padStart(2, '0')}-${String(new Date(calendarMonth.getFullYear(), calendarMonth.getMonth() + 1, 0).getDate()).padStart(2, '0')}` && request.end_date >= `${calendarMonth.getFullYear()}-${String(calendarMonth.getMonth() + 1).padStart(2, '0')}-01`);
+  const handleDayClick = (date) => {
+    if (!date) return;
+    const dateString = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+    setStartDate(dateString);
+    setEndDate(dateString);
+    fetchModalOptions();
+    setShowModal(true);
+  };
+
   const requestsForDay = (date) => {
+    const dayOfWeek = date.getDay(); // 0 = Sun, 6 = Sat
+    if (dayOfWeek === 0 || dayOfWeek === 6) return []; // Exclude weekends from displaying leave chips
     const dateString = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
     return calendarRequests.filter((request) => request.start_date <= dateString && request.end_date >= dateString);
   };
@@ -250,20 +261,57 @@ export default function Requests() {
               {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((day) => <div key={day} className="px-3 py-2 text-[10px] font-bold uppercase tracking-widest text-muted-foreground">{day}</div>)}
             </div>
             <div className="grid grid-cols-7">
-              {calendarDays.map((date, index) => (
-                <div key={date ? date.toISOString() : `empty-${index}`} className="min-h-32 border-r border-b border-border p-2 last:border-r-0">
-                  {date && <>
-                    <span className={`inline-flex w-6 h-6 items-center justify-center rounded-full text-xs font-bold ${date.toDateString() === new Date().toDateString() ? 'bg-blue-600 text-white' : 'text-muted-foreground'}`}>{date.getDate()}</span>
-                    <div className="mt-2 space-y-1">
-                      {requestsForDay(date).map((request) => (
-                        <div key={`${request.id}-${date.toISOString()}`} title={`${request.employee_name || `Employee #${request.employee_id}`} · ${request.department_name || 'No department'}`} className={`rounded-md px-1.5 py-1 text-[10px] leading-tight font-semibold truncate ${request.status === 'approved' ? 'bg-emerald-100 text-emerald-800 border border-emerald-200' : 'bg-amber-100 text-amber-800 border border-amber-200'}`}>
-                          {request.employee_name || `Employee #${request.employee_id}`}<span className="block font-normal opacity-75">{request.department_name || request.type_name || 'Leave'}</span>
+              {calendarDays.map((date, index) => {
+                const isWeekend = date && (date.getDay() === 0 || date.getDay() === 6);
+                return (
+                  <div
+                    key={date ? date.toISOString() : `empty-${index}`}
+                    className={`min-h-32 border-r border-b border-border p-2 last:border-r-0 group transition-colors ${
+                      isWeekend ? 'bg-muted/30' : 'hover:bg-muted/20'
+                    }`}
+                  >
+                    {date && (
+                      <>
+                        <div className="flex items-center justify-between">
+                          <span
+                            className={`inline-flex w-6 h-6 items-center justify-center rounded-full text-xs font-bold ${
+                              date.toDateString() === new Date().toDateString() ? 'bg-blue-600 text-white' : 'text-muted-foreground'
+                            }`}
+                          >
+                            {date.getDate()}
+                          </span>
+                          {!isWeekend && (
+                            <button
+                              type="button"
+                              onClick={() => handleDayClick(date)}
+                              title={`Request leave starting ${date.toLocaleDateString()}`}
+                              className="opacity-0 group-hover:opacity-100 hover:bg-blue-100 text-blue-600 rounded-md p-1 transition-all"
+                            >
+                              <Plus className="w-3.5 h-3.5" />
+                            </button>
+                          )}
                         </div>
-                      ))}
-                    </div>
-                  </>}
-                </div>
-              ))}
+                        <div className="mt-2 space-y-1">
+                          {requestsForDay(date).map((request) => (
+                            <div
+                              key={`${request.id}-${date.toISOString()}`}
+                              title={`${request.employee_name || `Employee #${request.employee_id}`} · ${request.department_name || 'No department'}`}
+                              className={`rounded-md px-1.5 py-1 text-[10px] leading-tight font-semibold truncate ${
+                                request.status === 'approved'
+                                  ? 'bg-emerald-100 text-emerald-800 border border-emerald-200'
+                                  : 'bg-amber-100 text-amber-800 border border-amber-200'
+                              }`}
+                            >
+                              {request.employee_name || `Employee #${request.employee_id}`}
+                              <span className="block font-normal opacity-75">{request.department_name || request.type_name || 'Leave'}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </>
+                    )}
+                  </div>
+                );
+              })}
             </div>
           </div>
         </div>
