@@ -15,6 +15,7 @@ import ContractForm from './modules/contracts/ContractForm';
 import ScheduleList from './modules/schedules/ScheduleList';
 import ScheduleForm from './modules/schedules/ScheduleForm';
 import UserManagement from './modules/users/UserManagement';
+import logo from '../assets/logo.png';
 
 // Module pages — Dev 2
 import AttendanceList from './modules/attendance/AttendanceList';
@@ -243,9 +244,11 @@ function NavBar() {
         <div className="flex justify-between items-center h-[64px]">
           {/* Logo */}
           <Link to="/" className="flex items-center gap-2.5 shrink-0 group">
-            <div className="w-9 h-9 rounded-xl bg-primary flex items-center justify-center shadow-md shadow-primary/20 group-hover:scale-105 transition-transform">
-              <Sparkles className="w-5 h-5 text-primary-foreground" />
-            </div>
+            <img
+              src={logo}
+              alt="PeoplePay360 logo"
+              className="w-9 h-9 rounded-xl object-cover shadow-md shadow-primary/20 group-hover:scale-105 transition-transform"
+            />
             <span className="text-foreground font-extrabold text-lg tracking-tight">
               PeoplePay<span className="text-primary/70">360</span>
             </span>
@@ -331,11 +334,10 @@ function NavBar() {
                     key={child.path}
                     to={child.path}
                     onClick={() => setMobileOpen(false)}
-                    className={`block px-6 py-2 text-sm rounded-lg transition ${
-                      location.pathname === child.path
+                    className={`block px-6 py-2 text-sm rounded-lg transition ${location.pathname === child.path
                         ? 'bg-white/10 text-white font-semibold'
                         : 'text-slate-400 hover:text-white hover:bg-white/5'
-                    }`}
+                      }`}
                   >
                     {child.label}
                   </Link>
@@ -397,10 +399,10 @@ export default function App() {
             <Route path="/employees/kanban" element={<ProtectedRoute><AnimatedRoute><EmployeeKanban /></AnimatedRoute></ProtectedRoute>} />
             <Route path="/employees/:id" element={<ProtectedRoute><AnimatedRoute><EmployeeForm /></AnimatedRoute></ProtectedRoute>} />
             <Route path="/employees/:id/contracts" element={<ProtectedRoute><AnimatedRoute><ContractHistory /></AnimatedRoute></ProtectedRoute>} />
-            
+
             <Route path="/contracts" element={<ProtectedRoute><AnimatedRoute><ContractList /></AnimatedRoute></ProtectedRoute>} />
             <Route path="/contracts/new" element={<ProtectedRoute><AnimatedRoute><ContractForm /></AnimatedRoute></ProtectedRoute>} />
-            
+
             <Route path="/schedules" element={<ProtectedRoute><AnimatedRoute><ScheduleList /></AnimatedRoute></ProtectedRoute>} />
             <Route path="/schedules/new" element={<ProtectedRoute><AnimatedRoute><ScheduleForm /></AnimatedRoute></ProtectedRoute>} />
             <Route path="/schedules/:id" element={<ProtectedRoute><AnimatedRoute><ScheduleForm /></AnimatedRoute></ProtectedRoute>} />
