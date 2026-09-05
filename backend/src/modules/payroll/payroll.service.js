@@ -215,7 +215,7 @@ function triggerAsyncAnomalyScan(payrunId) {
         'Content-Length': Buffer.byteLength(postData),
       },
     }, (res) => {
-      res.on('data', () => {});
+      res.on('data', () => { });
     });
     req.on('error', (err) => {
       console.warn('AI Anomaly Scan trigger failed silently:', err.message);
@@ -304,6 +304,33 @@ async function getPayslipWithLines(id) {
   return { ...payslip, lines };
 }
 
+async function explainPayslip(id) {
+  const payslip = await getPayslipWithLines(id);
+  const earnings = payslip.lines.filter((line) => line.category !== 'deduction');
+  const deductions = payslip.lines.filter((line) => line.category === 'deduction');
+  const grossTotal = Number(payslip.gross_total);
+  const netTotal = Number(payslip.net_total);
+  const deductionTotal = Math.round((grossTotal - netTotal) * 100) / 100;
+
+  return {
+    payslip_id: payslip.id,
+    employee_name: payslip.employee_name,
+    worked_days: payslip.worked_days,
+    earnings_count: earnings.length,
+    deductions_count: deductions.length,
+    gross_total: grossTotal,
+    deduction_total: deductionTotal,
+    net_total: netTotal,
+    compliance: {
+      has_warning: Boolean(payslip.has_warning),
+      warning_reason: payslip.warning_reason || null,
+      message: payslip.has_warning
+        ? `Action needed: ${payslip.warning_reason}`
+        : 'No compliance warnings were found for this payslip.',
+    },
+  };
+}
+
 async function listPayslipsByPayrun(payrunId) {
   return repo.findPayslipsByPayrun(payrunId);
 }
@@ -352,6 +379,7 @@ module.exports = {
   createPayrun,
   transitionPayrun,
   getPayslipWithLines,
+  explainPayslip,
   listPayslipsByPayrun,
   listPayruns,
   getPayrun,

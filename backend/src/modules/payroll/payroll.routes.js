@@ -29,6 +29,7 @@ router.post('/payruns/:id/send-payslips', authenticate, requireRole('admin', 'hr
 
 // ───────────── Payslips ─────────────
 router.get('/payslips/:id', authenticate, ctrl.getPayslip);
+router.get('/payslips/:id/explanation', authenticate, ctrl.explainPayslip);
 router.get('/payslips/:id/pdf', authenticate, ctrl.getPayslipPdf);
 
 module.exports = router;
