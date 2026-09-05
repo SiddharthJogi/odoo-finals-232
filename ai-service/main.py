@@ -9,7 +9,7 @@ Endpoints:
 Run: uvicorn main:app --reload --port 8001
 """
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Header
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from intent import classify_intent
@@ -56,13 +56,13 @@ def ai_query(payload: QueryIn):
 
 
 @app.post("/ai/anomaly-scan")
-def anomaly_scan(payload: AnomalyScanIn):
+def anomaly_scan(payload: AnomalyScanIn, authorization: str = Header(default="")):
     """
     Called async after payrun validation.
     Checks for: duplicate payslips, salary outliers, missing required fields.
     Writes findings to audit_logs via the main API.
     """
-    return scan_payrun(payload.payrun_id)
+    return scan_payrun(payload.payrun_id, authorization)
 
 
 @app.get("/ai/forecast")
