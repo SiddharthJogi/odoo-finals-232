@@ -181,12 +181,12 @@ async function seed() {
   for (const emp of empIds) {
     await db.query(
       `INSERT INTO allocations (employee_id, type_id, allocated, valid_from, valid_to, status)
-       VALUES ($1, $2, 20, '2025-01-01', '2025-12-31', 'approved')`,
+       VALUES ($1, $2, 20, '2025-01-01', '2027-12-31', 'approved')`,
       [emp.id, annualLeaveId]
     );
     await db.query(
       `INSERT INTO allocations (employee_id, type_id, allocated, valid_from, valid_to, status)
-       VALUES ($1, $2, 10, '2025-01-01', '2025-12-31', 'approved')`,
+       VALUES ($1, $2, 10, '2025-01-01', '2027-12-31', 'approved')`,
       [emp.id, sickLeaveId]
     );
   }

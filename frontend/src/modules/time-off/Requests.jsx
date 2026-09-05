@@ -136,6 +136,7 @@ export default function Requests() {
       await client.patch(`/time-off/requests/${id}/approve`);
       setRequests((prev) => prev.map((r) => (r.id === id ? { ...r, status: 'approved' } : r)));
       addToast('Time off request approved. Allocation balance updated.', 'success');
+      fetchModalOptions();
     } catch (err) {
       addToast(err.response?.data?.error || 'Approval failed', 'error');
     } finally {
@@ -149,6 +150,7 @@ export default function Requests() {
       await client.patch(`/time-off/requests/${id}/refuse`);
       setRequests((prev) => prev.map((r) => (r.id === id ? { ...r, status: 'refused' } : r)));
       addToast('Time off request refused.', 'warning');
+      fetchModalOptions();
     } catch (err) {
       addToast(err.response?.data?.error || 'Refusal failed', 'error');
     } finally {
@@ -165,9 +167,12 @@ export default function Requests() {
   const getSelectedTypeObj = () => types.find((t) => t.id.toString() === selectedType);
   const getSelectedTypeAlloc = () => {
     const targetEmpId = selectedEmployeeId || user?.employeeId;
-    return allocations.find(
-      (a) => a.type_id.toString() === selectedType && (!targetEmpId || a.employee_id.toString() === targetEmpId.toString())
+    if (!targetEmpId) return null;
+    const empAllocations = allocations.filter(
+      (a) => a.type_id.toString() === selectedType && a.employee_id.toString() === targetEmpId.toString()
     );
+    if (empAllocations.length === 0) return null;
+    return empAllocations.reduce((sum, a) => sum + Number(a.remaining || 0), 0);
   };
   const pendingCount = requests.filter((r) => r.status === 'draft').length;
   const calendarDays = (() => {
@@ -204,7 +209,10 @@ export default function Requests() {
           </p>
         </div>
         <button
-          onClick={() => setShowModal(true)}
+          onClick={() => {
+            fetchModalOptions();
+            setShowModal(true);
+          }}
           className="inline-flex items-center gap-2 px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-semibold shadow-sm transition"
         >
           <Plus className="w-4 h-4" />
