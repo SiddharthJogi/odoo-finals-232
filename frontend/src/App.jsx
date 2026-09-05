@@ -12,6 +12,7 @@ import ContractList from './modules/contracts/ContractList';
 import ContractForm from './modules/contracts/ContractForm';
 import ScheduleList from './modules/schedules/ScheduleList';
 import ScheduleForm from './modules/schedules/ScheduleForm';
+import UserManagement from './modules/users/UserManagement';
 
 // Module pages — Dev 2
 import AttendanceList from './modules/attendance/AttendanceList';
@@ -47,6 +48,7 @@ import {
 } from 'lucide-react';
 
 const NAV_ITEMS = [
+<<<<<<< Updated upstream
   {
     path: '/employees',
     label: 'Employees',
@@ -116,6 +118,16 @@ const NAV_ITEMS = [
     icon: LayoutDashboard,
     roles: ['admin', 'hr_manager', 'hr_payroll_manager', 'hr_payroll_user'],
   },
+=======
+  { path: '/users', label: 'Users', roles: ['admin'] },
+  { path: '/employees', label: 'Employees', roles: ['admin', 'hr_manager', 'hr_payroll_manager', 'hr_payroll_user'] },
+  { path: '/contracts', label: 'Contracts', roles: ['admin', 'hr_manager', 'hr_payroll_manager', 'hr_payroll_user'] },
+  { path: '/schedules', label: 'Schedules', roles: ['admin', 'hr_manager', 'hr_payroll_manager', 'hr_payroll_user'] },
+  { path: '/attendance', label: 'Attendance', roles: ['admin', 'hr_manager', 'hr_payroll_manager', 'hr_payroll_user', 'employee'] },
+  { path: '/time-off', label: 'Time Off', roles: ['admin', 'hr_manager', 'hr_payroll_manager', 'hr_payroll_user', 'employee'] },
+  { path: '/payroll', label: 'Payroll', roles: ['admin', 'hr_payroll_manager', 'hr_payroll_user', 'hr_manager'] },
+  { path: '/dashboard', label: 'Dashboard', roles: ['admin', 'hr_manager', 'hr_payroll_manager', 'hr_payroll_user'] },
+>>>>>>> Stashed changes
 ];
 
 const ROLE_BADGE = {
@@ -361,6 +373,7 @@ export default function App() {
           <Route path="/schedules" element={<ProtectedRoute><ScheduleList /></ProtectedRoute>} />
           <Route path="/schedules/new" element={<ProtectedRoute><ScheduleForm /></ProtectedRoute>} />
           <Route path="/schedules/:id" element={<ProtectedRoute><ScheduleForm /></ProtectedRoute>} />
+          <Route path="/users" element={<ProtectedRoute><UserManagement /></ProtectedRoute>} />
 
           {/* Dev 2: Attendance & Time Off */}
           <Route path="/attendance" element={<ProtectedRoute><AttendanceList /></ProtectedRoute>} />

@@ -11,6 +11,11 @@ async function findRoleById(id) {
   return rows[0] || null;
 }
 
+async function findRoleByName(name) {
+  const { rows } = await db.query('SELECT * FROM roles WHERE name = $1', [name]);
+  return rows[0] || null;
+}
+
 // ───────────── Users ─────────────
 async function findUserByEmail(email) {
   const { rows } = await db.query(
@@ -32,6 +37,14 @@ async function findUserById(id) {
   return rows[0] || null;
 }
 
+async function findUserByEmployeeId(employeeId) {
+  const { rows } = await db.query(
+    'SELECT id FROM users WHERE employee_id = $1',
+    [employeeId]
+  );
+  return rows[0] || null;
+}
+
 async function insertUser({ email, passwordHash, roleId, employeeId }) {
   const { rows } = await db.query(
     `INSERT INTO users (email, password_hash, role_id, employee_id)
@@ -42,11 +55,44 @@ async function insertUser({ email, passwordHash, roleId, employeeId }) {
   return rows[0];
 }
 
+async function findAllUsers() {
+  const { rows } = await db.query(
+    `SELECT u.id, u.email, u.is_active, u.created_at, u.employee_id,
+            r.name AS role, r.id AS role_id,
+            e.name AS employee_name
+     FROM users u
+     JOIN roles r ON u.role_id = r.id
+     LEFT JOIN employees e ON u.employee_id = e.id
+     ORDER BY u.id`
+  );
+  return rows;
+}
+
 async function updateUserRole(userId, roleId) {
   const { rows } = await db.query(
     `UPDATE users SET role_id = $1 WHERE id = $2
      RETURNING id, email, role_id, employee_id, is_active`,
     [roleId, userId]
+  );
+  return rows[0] || null;
+}
+
+async function deactivateUser(userId) {
+  const { rows } = await db.query(
+    `UPDATE users SET is_active = false WHERE id = $1
+     RETURNING id, email, role_id, employee_id, is_active`,
+    [userId]
+  );
+  return rows[0] || null;
+}
+
+async function reactivateUser(userId, passwordHash) {
+  const { rows } = await db.query(
+    `UPDATE users
+     SET is_active = true, password_hash = $2
+     WHERE id = $1
+     RETURNING id, email, role_id, employee_id, is_active`,
+    [userId, passwordHash]
   );
   return rows[0] || null;
 }
@@ -104,6 +150,25 @@ async function insertEmployee(data) {
      data.bank_account || null, data.status]
   );
   return rows[0];
+}
+
+async function insertEmployeeAndUser(client, { employee, passwordHash, roleId }) {
+  const employeeResult = await client.query(
+    `INSERT INTO employees (name, email, department_id, manager_id, job_position, schedule_id, employee_type, bank_account, status)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+     RETURNING *`,
+    [employee.name, employee.email, employee.department_id || null, employee.manager_id || null,
+     employee.job_position || null, employee.schedule_id || null, employee.employee_type,
+     employee.bank_account || null, employee.status]
+  );
+  const createdEmployee = employeeResult.rows[0];
+  const userResult = await client.query(
+    `INSERT INTO users (email, password_hash, role_id, employee_id)
+     VALUES ($1, $2, $3, $4)
+     RETURNING id, email, role_id, employee_id, is_active, created_at`,
+    [employee.email, passwordHash, roleId, createdEmployee.id]
+  );
+  return { employee: createdEmployee, user: userResult.rows[0] };
 }
 
 async function updateEmployee(id, data) {
@@ -222,15 +287,21 @@ async function insertScheduleLine({ scheduleId, dayOfWeek, startTime, endTime, b
 module.exports = {
   findAllRoles,
   findRoleById,
+  findRoleByName,
   findUserByEmail,
   findUserById,
+  findUserByEmployeeId,
+  findAllUsers,
   insertUser,
   updateUserRole,
+  deactivateUser,
+  reactivateUser,
   findAllDepartments,
   insertDepartment,
   findAllEmployees,
   findEmployeeById,
   insertEmployee,
+  insertEmployeeAndUser,
   updateEmployee,
   findAllContracts,
   findContractsByEmployee,

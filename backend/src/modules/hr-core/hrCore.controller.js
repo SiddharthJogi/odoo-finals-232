@@ -5,6 +5,7 @@ const {
   createUserSchema,
   updateRoleSchema,
   createEmployeeSchema,
+  provisionEmployeeSchema,
   updateEmployeeSchema,
   createContractSchema,
   createScheduleSchema,
@@ -31,9 +32,29 @@ const updateUserRole = asyncHandler(async (req, res) => {
   res.json(user);
 });
 
+const deactivateUser = asyncHandler(async (req, res) => {
+  const user = await service.deactivateUser(req.user.id, parseInt(req.params.id, 10));
+  res.json(user);
+});
+
+const reactivateUser = asyncHandler(async (req, res) => {
+  const user = await service.reactivateUser(req.user.id, parseInt(req.params.id, 10));
+  res.json(user);
+});
+
 const getMe = asyncHandler(async (req, res) => {
   const user = await service.getUserProfile(req.user.id);
   res.json(user);
+});
+
+const listUsers = asyncHandler(async (_req, res) => {
+  const users = await service.listAllUsers();
+  res.json(users);
+});
+
+const listRoles = asyncHandler(async (_req, res) => {
+  const roles = await service.listAllRoles();
+  res.json(roles);
 });
 
 // ───────────── Departments ─────────────
@@ -68,6 +89,12 @@ const createEmployee = asyncHandler(async (req, res) => {
   const data = createEmployeeSchema.parse(req.body);
   const employee = await service.createEmployee(data);
   res.status(201).json(employee);
+});
+
+const provisionEmployee = asyncHandler(async (req, res) => {
+  const data = provisionEmployeeSchema.parse(req.body);
+  const result = await service.provisionEmployee(req.user, data);
+  res.status(201).json(result);
 });
 
 const updateEmployee = asyncHandler(async (req, res) => {
@@ -114,12 +141,17 @@ module.exports = {
   login,
   createUser,
   updateUserRole,
+  deactivateUser,
+  reactivateUser,
   getMe,
+  listUsers,
+  listRoles,
   listDepartments,
   createDepartment,
   listEmployees,
   getEmployee,
   createEmployee,
+  provisionEmployee,
   updateEmployee,
   listAllContracts,
   listContracts,
