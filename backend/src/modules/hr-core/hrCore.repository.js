@@ -126,6 +126,13 @@ async function updateEmployee(id, data) {
 }
 
 // ───────────── Contracts ─────────────
+async function findAllContracts() {
+  const { rows } = await db.query(
+    'SELECT c.*, e.name as employee_name FROM contracts c JOIN employees e ON c.employee_id = e.id ORDER BY c.start_date DESC'
+  );
+  return rows;
+}
+
 async function findContractsByEmployee(employeeId) {
   const { rows } = await db.query(
     'SELECT * FROM contracts WHERE employee_id = $1 ORDER BY start_date DESC',
@@ -225,6 +232,7 @@ module.exports = {
   findEmployeeById,
   insertEmployee,
   updateEmployee,
+  findAllContracts,
   findContractsByEmployee,
   findApplicableContract,
   findOverlappingActiveContracts,
