@@ -59,6 +59,8 @@ export default function PayslipView() {
         <p className="text-gray-500 font-semibold">Payslip not found</p>
         <button onClick={() => navigate('/payroll')} className="mt-4 text-blue-600 text-sm underline">
           Back to Payruns
+        </button>
+      </div>
     );
   }
 
