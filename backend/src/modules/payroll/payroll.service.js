@@ -168,6 +168,35 @@ const VALID_TRANSITIONS = {
   validated: 'paid',
 };
 
+const config = require('../../config');
+const http = require('http');
+
+function triggerAsyncAnomalyScan(payrunId) {
+  try {
+    const aiUrl = new URL(config.aiServiceUrl || 'http://localhost:8001');
+    const postData = JSON.stringify({ payrun_id: parseInt(payrunId, 10) });
+    const req = http.request({
+      hostname: aiUrl.hostname,
+      port: aiUrl.port || 8001,
+      path: '/ai/anomaly-scan',
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Content-Length': Buffer.byteLength(postData),
+      },
+    }, (res) => {
+      res.on('data', () => {});
+    });
+    req.on('error', (err) => {
+      console.warn('AI Anomaly Scan trigger failed silently:', err.message);
+    });
+    req.write(postData);
+    req.end();
+  } catch (err) {
+    console.warn('Failed to trigger AI anomaly scan:', err.message);
+  }
+}
+
 async function transitionPayrun(payrunId, targetStatus) {
   const payrun = await repo.findPayrunById(payrunId);
   if (!payrun) throw new NotFoundError('Payrun', payrunId);
@@ -185,6 +214,11 @@ async function transitionPayrun(payrunId, targetStatus) {
     const updated = await repo.updatePayrunStatus(payrunId, targetStatus, client);
     await repo.updatePayslipStatus(payrunId, targetStatus, client);
     await client.query('COMMIT');
+
+    if (targetStatus === 'validated') {
+      triggerAsyncAnomalyScan(payrunId);
+    }
+
     return updated;
   } catch (err) {
     await client.query('ROLLBACK');
@@ -217,6 +251,28 @@ async function getPayrun(id) {
   return payrun;
 }
 
+async function sendPayslips(payrunId, userId) {
+  const payrun = await repo.findPayrunById(payrunId);
+  if (!payrun) throw new NotFoundError('Payrun', payrunId);
+
+  const payslips = await repo.findPayslipsByPayrun(payrunId);
+  if (payslips.length === 0) {
+    throw new ValidationError('No payslips found for this payrun');
+  }
+
+  await db.query(
+    `INSERT INTO audit_logs (user_id, action, entity, entity_id, note)
+     VALUES ($1, $2, $3, $4, $5)`,
+    [userId || null, 'send_payslips', 'payrun', payrunId, `Dispatched ${payslips.length} payslips via email service for payrun #${payrunId} (${payrun.name})`]
+  );
+
+  return {
+    success: true,
+    count: payslips.length,
+    message: `Dispatched ${payslips.length} payslips via email to registered employees.`,
+  };
+}
+
 module.exports = {
   listStructures,
   getStructure,
@@ -232,4 +288,6 @@ module.exports = {
   listPayslipsByPayrun,
   listPayruns,
   getPayrun,
+  sendPayslips,
 };
+

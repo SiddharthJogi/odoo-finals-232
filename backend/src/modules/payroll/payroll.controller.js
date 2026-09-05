@@ -100,37 +100,88 @@ const getPayslip = asyncHandler(async (req, res) => {
 });
 
 const getPayslipPdf = asyncHandler(async (req, res) => {
-  // PDF generation placeholder — Dev 3 will implement with pdfkit
   const payslip = await service.getPayslipWithLines(parseInt(req.params.id, 10));
   res.setHeader('Content-Type', 'application/pdf');
-  res.setHeader('Content-Disposition', `attachment; filename=payslip_${payslip.id}.pdf`);
+  res.setHeader('Content-Disposition', `inline; filename=payslip_${payslip.id}.pdf`);
 
   const PDFDocument = require('pdfkit');
-  const doc = new PDFDocument({ margin: 50 });
+  const doc = new PDFDocument({ size: 'A4', margin: 40 });
   doc.pipe(res);
 
-  doc.fontSize(20).text('PeoplePay360 — Payslip', { align: 'center' });
-  doc.moveDown();
-  doc.fontSize(12).text(`Employee: ${payslip.employee_name}`);
-  doc.text(`Payslip ID: ${payslip.id}`);
-  doc.text(`Worked Days: ${payslip.worked_days}`);
+  // Header / Branding
+  doc.fillColor('#1E40AF').fontSize(22).text('PeoplePay360', { align: 'left' });
+  doc.fillColor('#4B5563').fontSize(10).text('Enterprise HR & Payroll Platform', { align: 'left' });
+  doc.moveDown(0.5);
+
+  doc.strokeColor('#E5E7EB').lineWidth(1).moveTo(40, doc.y).lineTo(550, doc.y).stroke();
   doc.moveDown();
 
-  doc.fontSize(14).text('Breakdown:', { underline: true });
+  // Payslip Metadata Table Header
+  doc.fillColor('#111827').fontSize(16).text(`PAYSLIP STATEMENT`, { align: 'left' });
   doc.moveDown(0.5);
-  for (const line of payslip.lines) {
-    doc.fontSize(10).text(`${line.label} (${line.category}): ${Number(line.value).toFixed(2)}`);
-  }
+
+  doc.fillColor('#374151').fontSize(10);
+  doc.text(`Payslip Reference #: PS-${String(payslip.id).padStart(5, '0')}`);
+  doc.text(`Employee Name: ${payslip.employee_name || 'Employee #' + payslip.employee_id}`);
+  doc.text(`Pay Period / Days Worked: ${payslip.worked_days} Days`);
+  doc.text(`Disbursement Account: ${payslip.bank_account || 'NOT REGISTERED (WARNING)'}`);
   doc.moveDown();
-  doc.fontSize(12).text(`Gross: ${Number(payslip.gross_total).toFixed(2)}`);
-  doc.text(`Net: ${Number(payslip.net_total).toFixed(2)}`);
 
   if (payslip.has_warning) {
-    doc.moveDown();
-    doc.fontSize(10).fillColor('red').text(`⚠ Warning: ${payslip.warning_reason}`);
+    doc.rect(40, doc.y, 510, 25).fill('#FEF2F2').stroke('#FCA5A5');
+    doc.fillColor('#991B1B').fontSize(9).text(`⚠ COMPLIANCE WARNING: ${payslip.warning_reason}`, 50, doc.y - 18);
+    doc.moveDown(1.5);
   }
 
+  // Earnings & Deductions Table
+  doc.fillColor('#1F2937').fontSize(12).text('Salary Rule Breakdown', { underline: true });
+  doc.moveDown(0.5);
+
+  // Table header
+  let y = doc.y;
+  doc.rect(40, y, 510, 20).fill('#F3F4F6');
+  doc.fillColor('#374151').fontSize(9);
+  doc.text('Rule / Item', 50, y + 5);
+  doc.text('Category', 280, y + 5);
+  doc.text('Amount (INR)', 450, y + 5, { align: 'right' });
+
+  y += 25;
+  for (const line of payslip.lines || []) {
+    const isDeduction = line.category === 'deduction';
+    doc.fillColor('#111827').fontSize(9);
+    doc.text(line.label, 50, y);
+    doc.fillColor(isDeduction ? '#DC2626' : '#16A34A').text(line.category.toUpperCase(), 280, y);
+    doc.fillColor('#111827').text(
+      `${isDeduction ? '-' : ''}INR ${Number(line.value).toLocaleString('en-IN', { minimumFractionDigits: 2 })}`,
+      450,
+      y,
+      { align: 'right' }
+    );
+    y += 18;
+    doc.strokeColor('#F3F4F6').lineWidth(0.5).moveTo(40, y - 4).lineTo(550, y - 4).stroke();
+  }
+
+  y += 10;
+  doc.strokeColor('#9CA3AF').lineWidth(1).moveTo(40, y).lineTo(550, y).stroke();
+  y += 10;
+
+  // Summary totals
+  doc.fontSize(10).fillColor('#374151').text('Gross Total Earnings:', 300, y);
+  doc.fontSize(10).fillColor('#111827').text(`INR ${Number(payslip.gross_total).toLocaleString('en-IN', { minimumFractionDigits: 2 })}`, 450, y, { align: 'right' });
+  y += 18;
+
+  doc.fontSize(11).fillColor('#15803D').text('Net Salary Payable:', 300, y);
+  doc.fontSize(11).fillColor('#15803D').text(`INR ${Number(payslip.net_total).toLocaleString('en-IN', { minimumFractionDigits: 2 })}`, 450, y, { align: 'right' });
+
+  doc.moveDown(4);
+  doc.fillColor('#9CA3AF').fontSize(8).text('This is a system-generated payslip issued by PeoplePay360 ERP.', { align: 'center' });
+
   doc.end();
+});
+
+const sendPayslips = asyncHandler(async (req, res) => {
+  const result = await service.sendPayslips(parseInt(req.params.id, 10), req.user?.id);
+  res.json(result);
 });
 
 module.exports = {
@@ -150,4 +201,6 @@ module.exports = {
   markPaid,
   getPayslip,
   getPayslipPdf,
+  sendPayslips,
 };
+

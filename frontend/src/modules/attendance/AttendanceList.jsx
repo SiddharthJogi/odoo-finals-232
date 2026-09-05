@@ -1,5 +1,17 @@
 import { useState, useEffect } from 'react';
+import { Link } from 'react-router-dom';
 import client from '../../api/client';
+import { Clock, CheckCircle2, AlertCircle } from 'lucide-react';
+
+function SkeletonRow() {
+  return (
+    <tr className="animate-pulse">
+      {[...Array(5)].map((_, i) => (
+        <td key={i} className="px-6 py-4"><div className="h-4 bg-gray-100 rounded w-24" /></td>
+      ))}
+    </tr>
+  );
+}
 
 export default function AttendanceList() {
   const [attendances, setAttendances] = useState([]);
@@ -12,45 +24,87 @@ export default function AttendanceList() {
       .finally(() => setLoading(false));
   }, []);
 
-  if (loading) return <div className="text-center py-12 text-gray-500">Loading attendance records...</div>;
-
   return (
     <div>
-      <div className="flex justify-between items-center mb-6">
-        <h1 className="text-2xl font-bold text-gray-900">Attendance</h1>
-        <a href="/attendance/check-in" className="px-4 py-2 text-sm bg-green-600 text-white rounded-lg hover:bg-green-700 transition">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
+        <div>
+          <h1 className="text-2xl font-extrabold text-gray-900 flex items-center gap-2">
+            <Clock className="w-7 h-7 text-indigo-600" />
+            Attendance Log
+          </h1>
+          <p className="text-xs text-gray-500 mt-1">
+            {loading ? '...' : `${attendances.length} records loaded`}
+          </p>
+        </div>
+        <Link
+          to="/attendance/check-in"
+          className="flex items-center gap-1.5 px-4 py-2 text-xs font-bold bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition shadow-md"
+        >
+          <CheckCircle2 className="w-4 h-4" />
           Check In / Out
-        </a>
+        </Link>
       </div>
 
       <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
         <table className="min-w-full divide-y divide-gray-200">
           <thead className="bg-gray-50">
             <tr>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Employee</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Check In</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Check Out</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Worked Hours</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
+              <th className="px-6 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Employee</th>
+              <th className="px-6 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Check In</th>
+              <th className="px-6 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Check Out</th>
+              <th className="px-6 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Worked Hours</th>
+              <th className="px-6 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Status</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-200">
-            {attendances.map((att) => (
-              <tr key={att.id} className="hover:bg-gray-50">
-                <td className="px-6 py-4 text-sm font-medium text-gray-900">Employee #{att.employee_id}</td>
-                <td className="px-6 py-4 text-sm text-gray-600">{new Date(att.check_in).toLocaleString()}</td>
-                <td className="px-6 py-4 text-sm text-gray-600">{att.check_out ? new Date(att.check_out).toLocaleString() : '—'}</td>
-                <td className="px-6 py-4 text-sm text-gray-600">{att.worked_hours ? `${Number(att.worked_hours).toFixed(1)}h` : '—'}</td>
-                <td className="px-6 py-4">
-                  <span className={`px-2 py-1 text-xs rounded-full ${att.status === 'done' ? 'bg-green-50 text-green-700' : 'bg-yellow-50 text-yellow-700'}`}>
-                    {att.status}
-                  </span>
-                </td>
-              </tr>
-            ))}
+            {loading
+              ? [...Array(6)].map((_, i) => <SkeletonRow key={i} />)
+              : attendances.map((att) => (
+                <tr key={att.id} className="hover:bg-gray-50 transition">
+                  <td className="px-6 py-4 text-sm font-semibold text-gray-900">
+                    {att.employee_name || `Employee #${att.employee_id}`}
+                  </td>
+                  <td className="px-6 py-4 text-sm text-gray-600">
+                    {att.check_in ? new Date(att.check_in).toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' }) : '—'}
+                  </td>
+                  <td className="px-6 py-4 text-sm text-gray-600">
+                    {att.check_out
+                      ? new Date(att.check_out).toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' })
+                      : <span className="inline-flex items-center gap-1 text-amber-700 font-semibold text-xs">
+                          <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse inline-block" />
+                          In Progress
+                        </span>
+                    }
+                  </td>
+                  <td className="px-6 py-4 text-sm font-mono font-medium text-gray-800">
+                    {att.worked_hours ? `${Number(att.worked_hours).toFixed(1)}h` : '—'}
+                  </td>
+                  <td className="px-6 py-4">
+                    <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 text-xs font-bold rounded-full border ${
+                      att.status === 'done'
+                        ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                        : 'bg-amber-50 text-amber-700 border-amber-200'
+                    }`}>
+                      {att.status === 'done' ? <CheckCircle2 className="w-3 h-3" /> : <Clock className="w-3 h-3" />}
+                      {att.status}
+                    </span>
+                  </td>
+                </tr>
+              ))
+            }
           </tbody>
         </table>
-        {attendances.length === 0 && <p className="text-center py-8 text-gray-400">No attendance records</p>}
+
+        {!loading && attendances.length === 0 && (
+          <div className="py-16 text-center">
+            <Clock className="w-12 h-12 text-gray-200 mx-auto mb-3" />
+            <p className="text-sm font-semibold text-gray-500">No attendance records yet</p>
+            <p className="text-xs text-gray-400 mt-1">
+              Employees can check in using the{' '}
+              <Link to="/attendance/check-in" className="text-blue-600 underline">Check In / Out</Link> page.
+            </p>
+          </div>
+        )}
       </div>
     </div>
   );

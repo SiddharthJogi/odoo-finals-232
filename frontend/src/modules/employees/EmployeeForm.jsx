@@ -1,10 +1,13 @@
 import { useState, useEffect } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, Link } from 'react-router-dom';
 import client from '../../api/client';
+import { useToast } from '../../components/Toast';
+import { UserCircle, ArrowLeft, FileText, Save, Loader2 } from 'lucide-react';
 
 export default function EmployeeForm() {
   const { id } = useParams();
   const navigate = useNavigate();
+  const { addToast } = useToast();
   const isEdit = !!id;
   const [form, setForm] = useState({
     name: '', email: '', department_id: '', manager_id: '', job_position: '',
@@ -26,7 +29,7 @@ export default function EmployeeForm() {
           bank_account: data.bank_account || '',
           status: data.status || 'active',
         }))
-        .catch(console.error);
+        .catch(() => addToast('Failed to load employee data', 'error'));
     }
   }, [id, isEdit]);
 
@@ -42,12 +45,15 @@ export default function EmployeeForm() {
       };
       if (isEdit) {
         await client.put(`/employees/${id}`, payload);
+        addToast('Employee updated successfully', 'success');
       } else {
         await client.post('/employees', payload);
+        addToast('Employee created successfully', 'success');
       }
       navigate('/employees');
     } catch (err) {
-      setError(err.response?.data?.error || 'Failed to save');
+      setError(err.response?.data?.error || 'Failed to save employee');
+      addToast(err.response?.data?.error || 'Failed to save employee', 'error');
     } finally {
       setLoading(false);
     }
@@ -57,7 +63,29 @@ export default function EmployeeForm() {
 
   return (
     <div className="max-w-2xl mx-auto">
-      <h1 className="text-2xl font-bold text-gray-900 mb-6">{isEdit ? 'Edit Employee' : 'New Employee'}</h1>
+      <button
+        onClick={() => navigate('/employees')}
+        className="flex items-center gap-1.5 text-xs font-semibold text-gray-500 hover:text-gray-700 mb-4 transition"
+      >
+        <ArrowLeft className="w-3.5 h-3.5" />
+        Back to Employees
+      </button>
+
+      <div className="flex items-center justify-between mb-6">
+        <h1 className="text-2xl font-extrabold text-gray-900 flex items-center gap-2">
+          <UserCircle className="w-7 h-7 text-blue-600" />
+          {isEdit ? 'Edit Employee' : 'New Employee'}
+        </h1>
+        {isEdit && (
+          <Link
+            to={`/employees/${id}/contracts`}
+            className="flex items-center gap-1.5 px-3.5 py-2 text-xs font-semibold bg-white border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition shadow-sm"
+          >
+            <FileText className="w-4 h-4" />
+            View Contracts
+          </Link>
+        )}
+      </div>
 
       {error && <div className="bg-red-50 text-red-700 rounded-lg px-4 py-3 mb-4 text-sm">{error}</div>}
 
@@ -98,8 +126,9 @@ export default function EmployeeForm() {
 
         <div className="flex justify-end gap-3 pt-4">
           <button type="button" onClick={() => navigate('/employees')} className="px-4 py-2 text-sm text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition">Cancel</button>
-          <button type="submit" disabled={loading} className="px-4 py-2 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 transition">
-            {loading ? 'Saving...' : isEdit ? 'Update' : 'Create'}
+          <button type="submit" disabled={loading} className="flex items-center gap-1.5 px-4 py-2 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 transition">
+            {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+            {loading ? 'Saving...' : isEdit ? 'Update Employee' : 'Create Employee'}
           </button>
         </div>
       </form>

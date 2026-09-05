@@ -12,6 +12,15 @@ const db = require('../src/db');
 async function seed() {
   console.log('Seeding database...');
 
+  // Truncate tables for clean seed
+  await db.query(`
+    TRUNCATE TABLE audit_logs, payslip_lines, payslips, payruns,
+    time_off_requests, allocations, time_off_types, attendances,
+    contracts, schedule_lines, working_schedules, employees,
+    users, departments, salary_rules, salary_structures
+    RESTART IDENTITY CASCADE;
+  `);
+
   // ─────────── Admin user ───────────
   const adminHash = await bcrypt.hash('admin123', 10);
   await db.query(
