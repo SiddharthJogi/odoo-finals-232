@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useAuth } from '../../auth/AuthContext';
 import client from '../../api/client';
 import { useToast } from '../../components/Toast';
-import { CalendarDays, CheckCircle2, XCircle, Clock, Plus, X } from 'lucide-react';
+import { CalendarDays, CheckCircle2, XCircle, Clock, Plus, X, ChevronLeft, ChevronRight } from 'lucide-react';
 
 const STATUS_STYLES = {
   draft: 'bg-amber-50 text-amber-800 border border-amber-200',
@@ -17,6 +17,7 @@ export default function Requests() {
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('all');
   const [actionLoading, setActionLoading] = useState(null);
+  const [calendarMonth, setCalendarMonth] = useState(() => new Date(new Date().getFullYear(), new Date().getMonth(), 1));
 
   // Modal State
   const [showModal, setShowModal] = useState(false);
@@ -145,6 +146,21 @@ export default function Requests() {
   const getSelectedTypeObj = () => types.find((t) => t.id.toString() === selectedType);
   const getSelectedTypeAlloc = () => allocations.find((a) => a.type_id.toString() === selectedType);
   const pendingCount = requests.filter((r) => r.status === 'draft').length;
+  const calendarDays = (() => {
+    const year = calendarMonth.getFullYear();
+    const month = calendarMonth.getMonth();
+    const firstDay = new Date(year, month, 1).getDay();
+    const daysInMonth = new Date(year, month + 1, 0).getDate();
+    return [...Array(firstDay + daysInMonth)].map((_, index) => {
+      if (index < firstDay) return null;
+      return new Date(year, month, index - firstDay + 1);
+    });
+  })();
+  const calendarRequests = requests.filter((request) => request.status !== 'refused' && request.start_date <= `${calendarMonth.getFullYear()}-${String(calendarMonth.getMonth() + 1).padStart(2, '0')}-${String(new Date(calendarMonth.getFullYear(), calendarMonth.getMonth() + 1, 0).getDate()).padStart(2, '0')}` && request.end_date >= `${calendarMonth.getFullYear()}-${String(calendarMonth.getMonth() + 1).padStart(2, '0')}-01`);
+  const requestsForDay = (date) => {
+    const dateString = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+    return calendarRequests.filter((request) => request.start_date <= dateString && request.end_date >= dateString);
+  };
 
   return (
     <div className="space-y-6">
@@ -171,6 +187,44 @@ export default function Requests() {
           Request Time Off
         </button>
       </div>
+
+      {/* Team Leave Calendar */}
+      <section className="bg-card rounded-3xl shadow-sm border border-border overflow-hidden" aria-label="Team leave calendar">
+        <div className="p-5 sm:p-6 border-b border-border flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div>
+            <h2 className="text-lg font-extrabold text-foreground">Team Leave Calendar</h2>
+            <p className="text-xs text-muted-foreground mt-1">Approved and pending leave across the team. Multiple chips on a date show overlapping absences.</p>
+          </div>
+          <div className="flex items-center gap-2">
+            <button aria-label="Previous month" onClick={() => setCalendarMonth(new Date(calendarMonth.getFullYear(), calendarMonth.getMonth() - 1, 1))} className="p-2 rounded-lg border border-border hover:bg-muted transition"><ChevronLeft className="w-4 h-4" /></button>
+            <span className="min-w-32 text-center text-sm font-bold text-foreground">{calendarMonth.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}</span>
+            <button aria-label="Next month" onClick={() => setCalendarMonth(new Date(calendarMonth.getFullYear(), calendarMonth.getMonth() + 1, 1))} className="p-2 rounded-lg border border-border hover:bg-muted transition"><ChevronRight className="w-4 h-4" /></button>
+          </div>
+        </div>
+        <div className="overflow-x-auto">
+          <div className="min-w-[720px]">
+            <div className="grid grid-cols-7 border-b border-border bg-muted/40">
+              {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((day) => <div key={day} className="px-3 py-2 text-[10px] font-bold uppercase tracking-widest text-muted-foreground">{day}</div>)}
+            </div>
+            <div className="grid grid-cols-7">
+              {calendarDays.map((date, index) => (
+                <div key={date ? date.toISOString() : `empty-${index}`} className="min-h-32 border-r border-b border-border p-2 last:border-r-0">
+                  {date && <>
+                    <span className={`inline-flex w-6 h-6 items-center justify-center rounded-full text-xs font-bold ${date.toDateString() === new Date().toDateString() ? 'bg-blue-600 text-white' : 'text-muted-foreground'}`}>{date.getDate()}</span>
+                    <div className="mt-2 space-y-1">
+                      {requestsForDay(date).map((request) => (
+                        <div key={`${request.id}-${date.toISOString()}`} title={`${request.employee_name || `Employee #${request.employee_id}`} · ${request.department_name || 'No department'}`} className={`rounded-md px-1.5 py-1 text-[10px] leading-tight font-semibold truncate ${request.status === 'approved' ? 'bg-emerald-100 text-emerald-800 border border-emerald-200' : 'bg-amber-100 text-amber-800 border border-amber-200'}`}>
+                          {request.employee_name || `Employee #${request.employee_id}`}<span className="block font-normal opacity-75">{request.department_name || request.type_name || 'Leave'}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </>}
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </section>
 
       {/* Tabs Filter */}
       <div className="flex flex-wrap gap-2 border-b border-gray-200 pb-2">
