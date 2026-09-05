@@ -7,11 +7,11 @@ const createAttendanceSchema = z.object({
 });
 
 const checkInSchema = z.object({
-  employee_id: z.number().int().positive(),
+  employee_id: z.number().int().positive().optional(),
 });
 
 const checkOutSchema = z.object({
-  employee_id: z.number().int().positive(),
+  employee_id: z.number().int().positive().optional(),
 });
 
 const correctAttendanceSchema = z.object({
@@ -37,7 +37,7 @@ const createAllocationSchema = z.object({
 });
 
 const createTimeOffRequestSchema = z.object({
-  employee_id: z.number().int().positive(),
+  employee_id: z.number().int().positive().optional(),
   type_id: z.number().int().positive(),
   start_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
   end_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),

@@ -1,5 +1,6 @@
 const { asyncHandler } = require('../../shared/asyncHandler');
 const service = require('./timeOps.service');
+const { ValidationError } = require('../../shared/errors');
 const {
   createAttendanceSchema,
   checkInSchema,
@@ -12,14 +13,31 @@ const {
 
 // ───────────── Attendance ─────────────
 const listAttendances = asyncHandler(async (req, res) => {
+  let employeeId = req.query.employee_id ? parseInt(req.query.employee_id, 10) : undefined;
+  // Non-admin/HR roles are locked to viewing their own records
+  if (req.user.role === 'employee') {
+    employeeId = req.user.employeeId;
+  }
   const filters = {
-    employee_id: req.query.employee_id ? parseInt(req.query.employee_id, 10) : undefined,
+    employee_id: employeeId,
     status: req.query.status,
     date_from: req.query.date_from,
     date_to: req.query.date_to,
   };
   const attendances = await service.listAttendances(filters);
   res.json(attendances);
+});
+
+const getActiveAttendance = asyncHandler(async (req, res) => {
+  const employeeId = req.query.employee_id
+    ? parseInt(req.query.employee_id, 10)
+    : req.user.employeeId;
+
+  if (!employeeId) {
+    return res.json(null);
+  }
+  const active = await service.getActiveAttendance(employeeId);
+  res.json(active);
 });
 
 const createAttendance = asyncHandler(async (req, res) => {
@@ -30,13 +48,21 @@ const createAttendance = asyncHandler(async (req, res) => {
 
 const doCheckIn = asyncHandler(async (req, res) => {
   const data = checkInSchema.parse(req.body);
-  const attendance = await service.checkIn(data.employee_id);
+  const employeeId = data.employee_id || req.user.employeeId;
+  if (!employeeId) {
+    throw new ValidationError('No employee profile linked to user');
+  }
+  const attendance = await service.checkIn(employeeId);
   res.status(201).json(attendance);
 });
 
 const doCheckOut = asyncHandler(async (req, res) => {
   const data = checkOutSchema.parse(req.body);
-  const attendance = await service.checkOut(data.employee_id);
+  const employeeId = data.employee_id || req.user.employeeId;
+  if (!employeeId) {
+    throw new ValidationError('No employee profile linked to user');
+  }
+  const attendance = await service.checkOut(employeeId);
   res.json(attendance);
 });
 
@@ -64,8 +90,12 @@ const createTimeOffType = asyncHandler(async (req, res) => {
 
 // ───────────── Allocations ─────────────
 const listAllocations = asyncHandler(async (req, res) => {
+  let employeeId = req.query.employee_id ? parseInt(req.query.employee_id, 10) : undefined;
+  if (req.user.role === 'employee') {
+    employeeId = req.user.employeeId;
+  }
   const filters = {
-    employee_id: req.query.employee_id ? parseInt(req.query.employee_id, 10) : undefined,
+    employee_id: employeeId,
     type_id: req.query.type_id ? parseInt(req.query.type_id, 10) : undefined,
   };
   const allocations = await service.listAllocations(filters);
@@ -80,8 +110,12 @@ const createAllocation = asyncHandler(async (req, res) => {
 
 // ───────────── Time Off Requests ─────────────
 const listTimeOffRequests = asyncHandler(async (req, res) => {
+  let employeeId = req.query.employee_id ? parseInt(req.query.employee_id, 10) : undefined;
+  if (req.user.role === 'employee') {
+    employeeId = req.user.employeeId;
+  }
   const filters = {
-    employee_id: req.query.employee_id ? parseInt(req.query.employee_id, 10) : undefined,
+    employee_id: employeeId,
     status: req.query.status,
   };
   const requests = await service.listTimeOffRequests(filters);
@@ -90,7 +124,18 @@ const listTimeOffRequests = asyncHandler(async (req, res) => {
 
 const createTimeOffRequest = asyncHandler(async (req, res) => {
   const data = createTimeOffRequestSchema.parse(req.body);
-  const request = await service.createTimeOffRequest(data);
+  const employeeId = req.user.role === 'employee'
+    ? req.user.employeeId
+    : (data.employee_id || req.user.employeeId);
+
+  if (!employeeId) {
+    throw new ValidationError('Employee ID is required to create a time off request');
+  }
+
+  const request = await service.createTimeOffRequest({
+    ...data,
+    employee_id: employeeId,
+  });
   res.status(201).json(request);
 });
 
@@ -112,6 +157,7 @@ const refuseTimeOffRequest = asyncHandler(async (req, res) => {
 
 module.exports = {
   listAttendances,
+  getActiveAttendance,
   createAttendance,
   doCheckIn,
   doCheckOut,
