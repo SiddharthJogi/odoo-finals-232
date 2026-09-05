@@ -37,6 +37,14 @@ async function findUserById(id) {
   return rows[0] || null;
 }
 
+async function findUserPasswordById(id) {
+  const { rows } = await db.query(
+    'SELECT password_hash, is_active FROM users WHERE id = $1',
+    [id]
+  );
+  return rows[0] || null;
+}
+
 async function findUserByEmployeeId(employeeId) {
   const { rows } = await db.query(
     'SELECT id FROM users WHERE employee_id = $1',
@@ -73,6 +81,15 @@ async function updateUserRole(userId, roleId) {
     `UPDATE users SET role_id = $1 WHERE id = $2
      RETURNING id, email, role_id, employee_id, is_active`,
     [roleId, userId]
+  );
+  return rows[0] || null;
+}
+
+async function updateUserPassword(userId, passwordHash) {
+  const { rows } = await db.query(
+    `UPDATE users SET password_hash = $1 WHERE id = $2
+     RETURNING id, email, role_id, employee_id, is_active`,
+    [passwordHash, userId]
   );
   return rows[0] || null;
 }
@@ -319,10 +336,12 @@ module.exports = {
   findRoleByName,
   findUserByEmail,
   findUserById,
+  findUserPasswordById,
   findUserByEmployeeId,
   findAllUsers,
   insertUser,
   updateUserRole,
+  updateUserPassword,
   deactivateUser,
   reactivateUser,
   findAllDepartments,

@@ -16,6 +16,11 @@ const updateRoleSchema = z.object({
   role_id: z.number().int().positive(),
 });
 
+const changePasswordSchema = z.object({
+  current_password: z.string().min(1),
+  new_password: z.string().min(8),
+});
+
 const createEmployeeSchema = z.object({
   name: z.string().min(1).max(150),
   email: z.string().email(),
@@ -72,6 +77,7 @@ module.exports = {
   loginSchema,
   createUserSchema,
   updateRoleSchema,
+  changePasswordSchema,
   createEmployeeSchema,
   provisionEmployeeSchema,
   updateEmployeeSchema,
