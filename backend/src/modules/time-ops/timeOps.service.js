@@ -220,11 +220,13 @@ async function listResponsibleUsers() {
 }
 
 function calculateWorkingDays(startDateStr, endDateStr) {
+  if (!startDateStr || !endDateStr) return 0;
   let count = 0;
-  const cur = new Date(startDateStr);
-  const end = new Date(endDateStr);
-  cur.setHours(0, 0, 0, 0);
-  end.setHours(0, 0, 0, 0);
+  const [sY, sM, sD] = startDateStr.split('T')[0].split('-').map(Number);
+  const [eY, eM, eD] = endDateStr.split('T')[0].split('-').map(Number);
+
+  const cur = new Date(sY, sM - 1, sD, 0, 0, 0);
+  const end = new Date(eY, eM - 1, eD, 0, 0, 0);
 
   while (cur <= end) {
     const dayOfWeek = cur.getDay(); // 0 = Sun, 6 = Sat
