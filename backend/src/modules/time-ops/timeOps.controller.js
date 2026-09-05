@@ -111,7 +111,7 @@ const createAllocation = asyncHandler(async (req, res) => {
 // ───────────── Time Off Requests ─────────────
 const listTimeOffRequests = asyncHandler(async (req, res) => {
   let employeeId = req.query.employee_id ? parseInt(req.query.employee_id, 10) : undefined;
-  if (req.user.role === 'employee') {
+  if (req.user.role === 'employee' && req.query.scope === 'mine') {
     employeeId = req.user.employeeId;
   }
   const filters = {
