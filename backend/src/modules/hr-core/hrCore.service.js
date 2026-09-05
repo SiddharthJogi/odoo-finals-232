@@ -36,13 +36,11 @@ async function createUser(data) {
   const role = await repo.findRoleById(data.role_id);
   if (!role) throw new ValidationError('Invalid role_id');
 
-  if (data.employee_id) {
-    const employee = await repo.findEmployeeById(data.employee_id);
-    if (!employee) throw new ValidationError('Employee not found');
+  const employee = await repo.findEmployeeById(data.employee_id);
+  if (!employee) throw new ValidationError('Employee not found');
 
-    const linkedUser = await repo.findUserByEmployeeId(data.employee_id);
-    if (linkedUser) throw new ValidationError('Employee already has a user account');
-  }
+  const linkedUser = await repo.findUserByEmployeeId(data.employee_id);
+  if (linkedUser) throw new ValidationError('Employee already has a user account');
 
   const temporaryPassword = data.password || crypto.randomBytes(12).toString('base64url');
   const passwordHash = await bcrypt.hash(temporaryPassword, config.bcryptRounds);
@@ -126,7 +124,7 @@ async function reactivateUser(actorId, targetUserId) {
   if (!existing) throw new NotFoundError('User', targetUserId);
   if (existing.is_active) throw new ValidationError('User account is already active');
 
-  const temporaryPassword = crypto.randomBytes(12).toString('base64url');
+  const temporaryPassword = data.password || crypto.randomBytes(12).toString('base64url');
   const passwordHash = await bcrypt.hash(temporaryPassword, config.bcryptRounds);
   const user = await repo.reactivateUser(targetUserId, passwordHash);
 
@@ -210,7 +208,7 @@ async function provisionEmployee(actor, data) {
   const existingUser = await repo.findUserByEmail(data.email);
   if (existingUser) throw new ValidationError('Email already has a user account');
 
-  const temporaryPassword = crypto.randomBytes(12).toString('base64url');
+  const temporaryPassword = data.password || crypto.randomBytes(12).toString('base64url');
   const passwordHash = await bcrypt.hash(temporaryPassword, config.bcryptRounds);
   const client = await db.getClient();
   let created;

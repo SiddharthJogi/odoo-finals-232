@@ -85,7 +85,7 @@ async function seed() {
       `INSERT INTO salary_rules (structure_id, name, code, category, sequence, calc_method, amount, base_code, formula_text)
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
       [structureId, rule.name, rule.code, rule.category, rule.sequence, rule.calc_method,
-       rule.amount, rule.base_code, rule.formula_text]
+        rule.amount, rule.base_code, rule.formula_text]
     );
   }
   console.log('  ✓ Salary structure with 5 rules created');
@@ -259,28 +259,28 @@ async function seed() {
       const wage = Number(contract.wage) * wageMultiplier;
 
       const basic = wage;
-      const hra   = basic * 0.20;
-      const ta    = 3000;
-      const pf    = basic * 0.12;
+      const hra = basic * 0.20;
+      const ta = 3000;
+      const pf = basic * 0.12;
       const gross = basic + hra + ta;
-      const net   = gross - pf;
+      const net = gross - pf;
 
       const hasWarning = contract.wage == 35000; // Rohan — no bank account
       const { rows: psRows } = await db.query(
         `INSERT INTO payslips (payrun_id, employee_id, contract_id, worked_days, gross_total, net_total, status, has_warning, warning_reason)
          VALUES ($1, $2, $3, $4, $5, $6, 'paid', $7, $8) RETURNING id`,
         [prId, emp.id, contract.id, workedDays,
-         Math.round(gross * 100) / 100, Math.round(net * 100) / 100,
-         hasWarning, hasWarning ? 'Missing bank account information' : null]
+          Math.round(gross * 100) / 100, Math.round(net * 100) / 100,
+          hasWarning, hasWarning ? 'Missing bank account information' : null]
       );
       const psId = psRows[0].id;
 
       const lines = [
-        { code: 'BASIC', label: 'Basic Salary',          category: 'basic',     seq: 1, value: basic },
-        { code: 'HRA',   label: 'House Rent Allowance',  category: 'allowance', seq: 2, value: hra   },
-        { code: 'TA',    label: 'Transport Allowance',   category: 'allowance', seq: 3, value: ta    },
-        { code: 'PF',    label: 'Provident Fund',        category: 'deduction', seq: 4, value: pf    },
-        { code: 'NET',   label: 'Net Salary',            category: 'net',       seq: 5, value: net   },
+        { code: 'BASIC', label: 'Basic Salary', category: 'basic', seq: 1, value: basic },
+        { code: 'HRA', label: 'House Rent Allowance', category: 'allowance', seq: 2, value: hra },
+        { code: 'TA', label: 'Transport Allowance', category: 'allowance', seq: 3, value: ta },
+        { code: 'PF', label: 'Provident Fund', category: 'deduction', seq: 4, value: pf },
+        { code: 'NET', label: 'Net Salary', category: 'net', seq: 5, value: net },
       ];
       for (const line of lines) {
         await db.query(
@@ -294,7 +294,7 @@ async function seed() {
   }
 
   // ─────────── Paid Payruns (historical trend data for dashboard) ───────────
-  await insertPaidPayrun('July 2026 Payrun',   '2026-07-01', '2026-07-31', 23);
+  await insertPaidPayrun('July 2026 Payrun', '2026-07-01', '2026-07-31', 23);
   console.log(`  ✓ Paid payrun (July 2026) with ${empIds.length} payslips created`);
 
   await insertPaidPayrun('August 2026 Payrun', '2026-08-01', '2026-08-31', 22);
