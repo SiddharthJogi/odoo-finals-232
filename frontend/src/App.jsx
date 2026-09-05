@@ -6,6 +6,10 @@ import LoginPage from './auth/LoginPage';
 import EmployeeList from './modules/employees/EmployeeList';
 import EmployeeForm from './modules/employees/EmployeeForm';
 import EmployeeKanban from './modules/employees/EmployeeKanban';
+import ContractList from './modules/contracts/ContractList';
+import ContractForm from './modules/contracts/ContractForm';
+import ScheduleList from './modules/schedules/ScheduleList';
+import ScheduleForm from './modules/schedules/ScheduleForm';
 
 // Module pages — Dev 2
 import AttendanceList from './modules/attendance/AttendanceList';
@@ -25,6 +29,8 @@ import Dashboard from './modules/dashboard/Dashboard';
 
 const NAV_ITEMS = [
   { path: '/employees', label: 'Employees', roles: ['admin', 'hr_manager', 'hr_payroll_manager', 'hr_payroll_user'] },
+  { path: '/contracts', label: 'Contracts', roles: ['admin', 'hr_manager', 'hr_payroll_manager', 'hr_payroll_user'] },
+  { path: '/schedules', label: 'Schedules', roles: ['admin', 'hr_manager', 'hr_payroll_manager', 'hr_payroll_user'] },
   { path: '/attendance', label: 'Attendance', roles: ['admin', 'hr_manager', 'hr_payroll_manager', 'hr_payroll_user', 'employee'] },
   { path: '/time-off', label: 'Time Off', roles: ['admin', 'hr_manager', 'hr_payroll_manager', 'hr_payroll_user', 'employee'] },
   { path: '/payroll', label: 'Payroll', roles: ['admin', 'hr_payroll_manager', 'hr_payroll_user', 'hr_manager'] },
@@ -96,12 +102,19 @@ export default function App() {
         <Routes>
           <Route path="/login" element={<LoginPage />} />
 
-          {/* Dev 1: Employees */}
+          {/* Dev 1: Employees, Contracts, Schedules */}
           <Route path="/" element={<ProtectedRoute><Navigate to="/employees" replace /></ProtectedRoute>} />
           <Route path="/employees" element={<ProtectedRoute><EmployeeList /></ProtectedRoute>} />
           <Route path="/employees/new" element={<ProtectedRoute><EmployeeForm /></ProtectedRoute>} />
           <Route path="/employees/:id" element={<ProtectedRoute><EmployeeForm /></ProtectedRoute>} />
           <Route path="/employees/kanban" element={<ProtectedRoute><EmployeeKanban /></ProtectedRoute>} />
+          
+          <Route path="/contracts" element={<ProtectedRoute><ContractList /></ProtectedRoute>} />
+          <Route path="/contracts/new" element={<ProtectedRoute><ContractForm /></ProtectedRoute>} />
+          
+          <Route path="/schedules" element={<ProtectedRoute><ScheduleList /></ProtectedRoute>} />
+          <Route path="/schedules/new" element={<ProtectedRoute><ScheduleForm /></ProtectedRoute>} />
+          <Route path="/schedules/:id" element={<ProtectedRoute><ScheduleForm /></ProtectedRoute>} />
 
           {/* Dev 2: Attendance & Time Off */}
           <Route path="/attendance" element={<ProtectedRoute><AttendanceList /></ProtectedRoute>} />

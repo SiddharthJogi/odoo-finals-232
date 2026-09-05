@@ -91,6 +91,10 @@ async function updateEmployee(id, data) {
 }
 
 // ───────────── Contracts ─────────────
+async function listAllContracts() {
+  return repo.findAllContracts();
+}
+
 async function listContractsByEmployee(employeeId) {
   return repo.findContractsByEmployee(employeeId);
 }
@@ -182,6 +186,7 @@ module.exports = {
   getEmployee,
   createEmployee,
   updateEmployee,
+  listAllContracts,
   listContractsByEmployee,
   getApplicableContract,
   createContract,
