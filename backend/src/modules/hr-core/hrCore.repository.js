@@ -58,7 +58,7 @@ async function insertUser({ email, passwordHash, roleId, employeeId }) {
     `INSERT INTO users (email, password_hash, role_id, employee_id)
      VALUES ($1, $2, $3, $4)
      RETURNING id, email, role_id, employee_id, is_active, created_at`,
-    [email, passwordHash, roleId, employeeId || null]
+    [email, passwordHash, roleId, employeeId]
   );
   return rows[0];
 }

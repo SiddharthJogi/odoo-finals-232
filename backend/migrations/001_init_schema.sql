@@ -60,7 +60,7 @@ CREATE TABLE users (
   email VARCHAR(255) UNIQUE NOT NULL,
   password_hash VARCHAR(255) NOT NULL,
   role_id INT NOT NULL REFERENCES roles(id),
-  employee_id INT REFERENCES employees(id),
+  employee_id INT NOT NULL REFERENCES employees(id),
   is_active BOOLEAN NOT NULL DEFAULT true,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );

@@ -11,7 +11,7 @@ export default function EmployeeForm() {
   const isEdit = !!id;
   const [form, setForm] = useState({
     name: '', email: '', department_id: '', manager_id: '', job_position: '',
-    employee_type: 'full_time', bank_account: '', status: 'active',
+    employee_type: 'full_time', bank_account: '', status: 'active', password: '',
   });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -35,8 +35,13 @@ export default function EmployeeForm() {
           bank_account: data.bank_account || '',
           schedule_id: data.schedule_id || '',
           status: data.status || 'active',
+<<<<<<< Updated upstream
           });
         })
+=======
+          password: '',
+        }))
+>>>>>>> Stashed changes
         .catch(() => addToast('Failed to load employee data', 'error'));
     } else {
       client.get('/schedules')
@@ -56,6 +61,7 @@ export default function EmployeeForm() {
         manager_id: form.manager_id ? parseInt(form.manager_id, 10) : undefined,
         schedule_id: form.schedule_id ? parseInt(form.schedule_id, 10) : undefined,
       };
+      if (isEdit || !form.password) delete payload.password;
       if (isEdit) {
         await client.put(`/employees/${id}`, payload);
         addToast('Employee updated successfully', 'success');
@@ -125,6 +131,13 @@ export default function EmployeeForm() {
             <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
             <input type="email" value={form.email} onChange={handleChange('email')} required className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" />
           </div>
+          {!isEdit && (
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Password <span className="text-gray-400 font-normal">(optional)</span></label>
+              <input type="password" value={form.password} onChange={handleChange('password')} minLength={8} placeholder="Leave blank to generate and email one" className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" />
+              <p className="text-xs text-gray-400 mt-1">If blank, a temporary password will be generated and emailed.</p>
+            </div>
+          )}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Job Position</label>
             <input value={form.job_position} onChange={handleChange('job_position')} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" />

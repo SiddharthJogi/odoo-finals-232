@@ -9,7 +9,7 @@ const createUserSchema = z.object({
   email: z.string().email(),
   password: z.string().min(8).optional(),
   role_id: z.number().int().positive(),
-  employee_id: z.number().int().positive().optional(),
+  employee_id: z.number().int().positive(),
 });
 
 const updateRoleSchema = z.object({
@@ -35,6 +35,7 @@ const createEmployeeSchema = z.object({
 
 const provisionEmployeeSchema = createEmployeeSchema.extend({
   role_id: z.number().int().positive().optional(),
+  password: z.string().min(8).optional(),
 });
 
 const updateEmployeeSchema = createEmployeeSchema.partial();
