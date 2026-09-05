@@ -77,6 +77,11 @@ const updateEmployee = asyncHandler(async (req, res) => {
 });
 
 // ───────────── Contracts ─────────────
+const listAllContracts = asyncHandler(async (req, res) => {
+  const contracts = await service.listAllContracts();
+  res.json(contracts);
+});
+
 const listContracts = asyncHandler(async (req, res) => {
   const contracts = await service.listContractsByEmployee(parseInt(req.params.id, 10));
   res.json(contracts);
@@ -116,6 +121,7 @@ module.exports = {
   getEmployee,
   createEmployee,
   updateEmployee,
+  listAllContracts,
   listContracts,
   createContract,
   listSchedules,

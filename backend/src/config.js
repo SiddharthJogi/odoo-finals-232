@@ -1,4 +1,4 @@
-require('dotenv').config();
+require('dotenv').config({ override: true });
 
 const required = ['DATABASE_URL', 'JWT_SECRET', 'PORT'];
 for (const key of required) {

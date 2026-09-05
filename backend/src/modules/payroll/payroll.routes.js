@@ -24,6 +24,7 @@ router.post('/payruns', authenticate, requireRole('admin', 'hr_payroll_manager',
 router.patch('/payruns/:id/compute', authenticate, requireRole('admin', 'hr_payroll_manager', 'hr_payroll_user'), ctrl.computePayrun);
 router.patch('/payruns/:id/validate', authenticate, requireRole('admin', 'hr_payroll_manager', 'hr_payroll_user'), ctrl.validatePayrun);
 router.patch('/payruns/:id/mark-paid', authenticate, requireRole('admin', 'hr_payroll_manager', 'hr_payroll_user'), ctrl.markPaid);
+router.post('/payruns/:id/send-payslips', authenticate, requireRole('admin', 'hr_payroll_manager'), ctrl.sendPayslips);
 
 // ───────────── Payslips ─────────────
 router.get('/payslips/:id', authenticate, ctrl.getPayslip);

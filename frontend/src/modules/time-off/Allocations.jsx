@@ -1,6 +1,17 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../../auth/AuthContext';
 import client from '../../api/client';
+import { CalendarDays, TrendingDown, CheckCircle2, AlertCircle } from 'lucide-react';
+
+function SkeletonRow() {
+  return (
+    <tr className="animate-pulse">
+      {[...Array(6)].map((_, i) => (
+        <td key={i} className="px-6 py-4"><div className="h-4 bg-gray-100 rounded w-20" /></td>
+      ))}
+    </tr>
+  );
+}
 
 export default function Allocations() {
   const { role } = useAuth();
@@ -80,7 +91,10 @@ export default function Allocations() {
       {/* Header */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900 tracking-tight">Leave Allocations</h1>
+          <h1 className="text-2xl font-bold text-gray-900 tracking-tight flex items-center gap-2">
+            <CalendarDays className="w-7 h-7 text-amber-500" />
+            Leave Allocations
+          </h1>
           <p className="text-sm text-gray-500">Employee leave balances and granted allowances</p>
         </div>
         {canCreate && (

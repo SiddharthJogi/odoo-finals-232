@@ -11,5 +11,6 @@ router.get('/salary-trend', authenticate, requireRole('admin', 'hr_manager', 'hr
 router.get('/attendance-overview', authenticate, requireRole('admin', 'hr_manager', 'hr_payroll_manager', 'hr_payroll_user'), ctrl.getAttendanceOverview);
 router.get('/time-off-overview', authenticate, requireRole('admin', 'hr_manager', 'hr_payroll_manager', 'hr_payroll_user'), ctrl.getTimeOffOverview);
 router.get('/warnings', authenticate, requireRole('admin', 'hr_payroll_manager', 'hr_payroll_user', 'hr_manager'), ctrl.getWarnings);
+router.post('/audit-logs', ctrl.createAuditLog);
 
 module.exports = router;

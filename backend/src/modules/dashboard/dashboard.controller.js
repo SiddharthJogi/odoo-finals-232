@@ -41,6 +41,11 @@ const getWarnings = asyncHandler(async (_req, res) => {
   res.json(data);
 });
 
+const createAuditLog = asyncHandler(async (req, res) => {
+  const log = await service.createAuditLog(req.body);
+  res.status(201).json(log);
+});
+
 module.exports = {
   getSummary,
   getSalaryByDepartment,
@@ -48,4 +53,5 @@ module.exports = {
   getAttendanceOverview,
   getTimeOffOverview,
   getWarnings,
+  createAuditLog,
 };
