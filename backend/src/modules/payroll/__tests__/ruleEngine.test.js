@@ -36,6 +36,24 @@ describe('ruleEngine', () => {
     expect(result.net_total).toBe(5500);
   });
 
+  it('should prorate contract_wage when attendance or payroll-impacting leave reduces payable days', async () => {
+    const rules = [
+      { id: 1, name: 'Basic Salary', code: 'BASIC', category: 'basic', sequence: 10, calc_method: 'formula', formula_text: 'contract_wage' },
+    ];
+
+    const result = await computePayslip({
+      contract,
+      structure,
+      rules,
+      workedDays: 20,
+      payrollInputs: { payroll_factor: 0.5, attendance_days: 10, unpaid_leave_days: 10 },
+    });
+
+    expect(result.lines[0].value).toBe(2500);
+    expect(result.gross_total).toBe(2500);
+    expect(result.net_total).toBe(2500);
+  });
+
   it('should throw error if percentage rule references non-existent or uncomputed base_code', async () => {
     const rules = [
       { id: 1, name: 'HRA', code: 'HRA', category: 'allowance', sequence: 10, calc_method: 'percentage', base_code: 'BASIC', amount: 20 },

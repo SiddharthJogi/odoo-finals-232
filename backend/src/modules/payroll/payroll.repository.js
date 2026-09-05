@@ -141,6 +141,64 @@ async function updatePayslipStatus(payrunId, status, client) {
   );
 }
 
+async function findPayrollInputs(employeeId, periodStart, periodEnd) {
+  const { rows } = await db.query(
+    `SELECT
+       (SELECT COUNT(*)
+        FROM generate_series($2::date, $3::date, interval '1 day') AS days(day)
+        WHERE EXTRACT(ISODOW FROM days.day) < 6) AS period_working_days,
+       (SELECT COUNT(DISTINCT DATE(a.check_in))
+        FROM attendances a
+        WHERE a.employee_id = $1
+          AND a.check_in >= $2::date
+          AND a.check_in < ($3::date + interval '1 day')
+          AND a.check_in::date
+            NOT IN (SELECT r.start_date + series.day
+                    FROM time_off_requests r
+                    CROSS JOIN LATERAL generate_series(0, r.duration::int - 1) AS series(day)
+                    WHERE r.employee_id = $1 AND r.status = 'approved'
+                      AND r.start_date <= $3::date AND r.end_date >= $2::date)) AS attendance_days,
+       (SELECT COALESCE(SUM(a.worked_hours), 0)
+        FROM attendances a
+        WHERE a.employee_id = $1
+          AND a.check_in >= $2::date
+          AND a.check_in < ($3::date + interval '1 day')) AS attendance_hours,
+       (SELECT COALESCE(SUM(LEAST(r.end_date, $3::date) - GREATEST(r.start_date, $2::date) + 1), 0)
+        FROM time_off_requests r
+        JOIN time_off_types t ON t.id = r.type_id
+        WHERE r.employee_id = $1 AND r.status = 'approved'
+          AND t.affects_payroll = false
+          AND r.start_date <= $3::date AND r.end_date >= $2::date) AS paid_leave_days,
+       (SELECT COALESCE(SUM(LEAST(r.end_date, $3::date) - GREATEST(r.start_date, $2::date) + 1), 0)
+        FROM time_off_requests r
+        JOIN time_off_types t ON t.id = r.type_id
+        WHERE r.employee_id = $1 AND r.status = 'approved'
+          AND t.affects_payroll = true
+          AND r.start_date <= $3::date AND r.end_date >= $2::date) AS unpaid_leave_days`,
+    [employeeId, periodStart, periodEnd]
+  );
+  return rows[0];
+}
+
+async function updatePayslipCalculation(id, data, client) {
+  const queryFn = client || db;
+  const { rows } = await queryFn.query(
+    `UPDATE payslips
+     SET worked_days = $1, gross_total = $2, net_total = $3,
+         has_warning = $4, warning_reason = $5
+     WHERE id = $6
+     RETURNING *`,
+    [data.worked_days, data.gross_total, data.net_total, data.has_warning || false,
+     data.warning_reason || null, id]
+  );
+  return rows[0] || null;
+}
+
+async function deletePayslipLines(payslipId, client) {
+  const queryFn = client || db;
+  await queryFn.query('DELETE FROM payslip_lines WHERE payslip_id = $1', [payslipId]);
+}
+
 // ───────────── Payslip Lines ─────────────
 async function findPayslipLines(payslipId) {
   const { rows } = await db.query(
@@ -211,6 +269,9 @@ module.exports = {
   findPayslipById,
   insertPayslip,
   updatePayslipStatus,
+  findPayrollInputs,
+  updatePayslipCalculation,
+  deletePayslipLines,
   findPayslipLines,
   insertPayslipLine,
   findEligibleEmployees,
