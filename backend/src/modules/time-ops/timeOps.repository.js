@@ -185,11 +185,13 @@ async function findTimeOffRequests(filters = {}) {
     SELECT 
       r.*, 
       e.name AS employee_name, 
+      d.name AS department_name,
       t.name AS type_name, 
       t.unit AS type_unit,
       COALESCE(re.name, u.email) AS responsible_name
     FROM time_off_requests r
     LEFT JOIN employees e ON r.employee_id = e.id
+    LEFT JOIN departments d ON e.department_id = d.id
     LEFT JOIN time_off_types t ON r.type_id = t.id
     LEFT JOIN users u ON r.responsible_id = u.id
     LEFT JOIN employees re ON u.employee_id = re.id

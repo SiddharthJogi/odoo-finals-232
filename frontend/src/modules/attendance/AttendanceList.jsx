@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../../auth/AuthContext';
 import client from '../../api/client';
-import { Clock, CheckCircle2, AlertCircle } from 'lucide-react';
+import { Clock, CheckCircle2, Users, CalendarOff, Timer, Activity } from 'lucide-react';
 
 function SkeletonRow() {
   return (
@@ -14,9 +14,20 @@ function SkeletonRow() {
   );
 }
 
+function formatLocalDate(date) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
 export default function AttendanceList() {
   const { role } = useAuth();
   const [attendances, setAttendances] = useState([]);
+  const [todayAttendances, setTodayAttendances] = useState([]);
+  const [monthAttendances, setMonthAttendances] = useState([]);
+  const [employeeCount, setEmployeeCount] = useState(0);
+  const [approvedLeaveToday, setApprovedLeaveToday] = useState(0);
   const [loading, setLoading] = useState(true);
   const [filters, setFilters] = useState({ date_from: '', date_to: '', status: '' });
   
@@ -41,14 +52,36 @@ export default function AttendanceList() {
       if (filters.date_from) params.date_from = filters.date_from;
       if (filters.date_to) params.date_to = filters.date_to;
       if (filters.status) params.status = filters.status;
-      const { data } = await client.get('/attendance', { params });
-      setAttendances(data);
+      const today = new Date();
+      const todayString = formatLocalDate(today);
+      const monthStart = formatLocalDate(new Date(today.getFullYear(), today.getMonth(), 1));
+      const tomorrow = new Date(today);
+      tomorrow.setDate(tomorrow.getDate() + 1);
+      const tomorrowString = formatLocalDate(tomorrow);
+      const [tableRes, todayRes, monthRes, leaveRes, employeeRes] = await Promise.all([
+        client.get('/attendance', { params }),
+        client.get('/attendance', { params: { date_from: todayString, date_to: tomorrowString } }),
+        client.get('/attendance', { params: { date_from: monthStart, date_to: tomorrowString } }),
+        client.get('/time-off/requests'),
+        role === 'employee' ? Promise.resolve({ data: [] }) : client.get('/employees'),
+      ]);
+      setAttendances(tableRes.data);
+      setTodayAttendances(todayRes.data);
+      setMonthAttendances(monthRes.data);
+      setApprovedLeaveToday(new Set(leaveRes.data.filter((request) => (
+        request.status === 'approved' && request.start_date <= todayString && request.end_date >= todayString
+      )).map((request) => request.employee_id)).size);
+      setEmployeeCount(role === 'employee' ? 1 : employeeRes.data.length);
     } catch (err) {
       console.error('Failed to fetch attendances', err);
     } finally {
       setLoading(false);
     }
   };
+
+  const presentToday = new Set(todayAttendances.map((attendance) => attendance.employee_id)).size;
+  const totalHoursLogged = monthAttendances.reduce((total, attendance) => total + Number(attendance.worked_hours || 0), 0);
+  const presenceRate = employeeCount > 0 ? Math.min(100, Math.round((presentToday / employeeCount) * 100)) : 0;
 
   const handleOpenEdit = (att) => {
     setEditItem(att);
@@ -100,6 +133,35 @@ export default function AttendanceList() {
           Open Check In/Out Widget
         </Link>
       </div>
+
+      {/* Management Snapshot */}
+      <section aria-label="Attendance summary" className="space-y-3">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          {[
+            { label: 'Present Today', value: presentToday, note: employeeCount ? `of ${employeeCount} active employees` : 'Checked in today', icon: Users, color: 'text-emerald-600', bg: 'bg-emerald-50' },
+            { label: 'On Leave Today', value: approvedLeaveToday, note: 'Approved leave requests', icon: CalendarOff, color: 'text-amber-600', bg: 'bg-amber-50' },
+            { label: 'Total Hours Logged', value: `${totalHoursLogged.toFixed(1)}h`, note: 'Cumulative this month', icon: Timer, color: 'text-indigo-600', bg: 'bg-indigo-50' },
+          ].map(({ label, value, note, icon: Icon, color, bg }) => (
+            <div key={label} className="bg-card border border-border rounded-2xl p-5 shadow-sm flex items-start justify-between">
+              <div>
+                <p className="text-xs font-bold uppercase tracking-widest text-muted-foreground">{label}</p>
+                <p className="text-3xl font-black text-foreground mt-2">{value}</p>
+                <p className="text-xs text-muted-foreground mt-1">{note}</p>
+              </div>
+              <div className={`p-3 rounded-xl ${bg} ${color}`}><Icon className="w-5 h-5" /></div>
+            </div>
+          ))}
+        </div>
+        <div className="bg-card border border-border rounded-2xl px-5 py-4 shadow-sm">
+          <div className="flex items-center justify-between gap-4 mb-2">
+            <div className="flex items-center gap-2 text-sm font-bold text-foreground"><Activity className="w-4 h-4 text-emerald-600" /> Attendance health</div>
+            <span className="text-sm font-black text-emerald-700">{presenceRate}% present</span>
+          </div>
+          <div className="h-2.5 bg-muted rounded-full overflow-hidden" aria-label={`${presenceRate}% of employees present today`}>
+            <div className="h-full bg-emerald-500 rounded-full transition-all duration-500" style={{ width: `${presenceRate}%` }} />
+          </div>
+        </div>
+      </section>
 
       {/* Filter Toolbar */}
       <div className="bg-card rounded-[2rem] p-6 shadow-sm border border-border grid grid-cols-1 sm:grid-cols-3 gap-6">
