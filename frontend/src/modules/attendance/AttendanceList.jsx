@@ -141,30 +141,53 @@ export default function AttendanceList() {
                   <td className="px-6 py-4 font-medium text-gray-900">
                     <div>{att.employee_name || `Employee #${att.employee_id}`}</div>
                     {att.job_position && <div className="text-xs text-gray-400 font-normal">{att.job_position}</div>}
+                    {att.scheduled_start && (
+                      <div className="text-[11px] text-gray-400 font-mono mt-0.5">
+                        Shift: {att.scheduled_start.slice(0, 5)} - {att.scheduled_end ? att.scheduled_end.slice(0, 5) : '17:00'}
+                      </div>
+                    )}
                   </td>
                   <td className="px-6 py-4 text-gray-600 font-mono text-xs">
-                    {new Date(att.check_in).toLocaleString()}
+                    <div>{new Date(att.check_in).toLocaleString()}</div>
+                    {att.is_late && (
+                      <span className="inline-flex items-center gap-1 mt-1 px-2 py-0.5 rounded text-[11px] font-semibold bg-amber-100 text-amber-800 border border-amber-200">
+                        ⏰ Late (+{att.late_minutes}m)
+                      </span>
+                    )}
                   </td>
                   <td className="px-6 py-4 text-gray-600 font-mono text-xs">
-                    {att.check_out ? new Date(att.check_out).toLocaleString() : <span className="text-amber-500 font-sans font-semibold">Active</span>}
+                    {att.check_out ? (
+                      <div>
+                        <div>{new Date(att.check_out).toLocaleString()}</div>
+                        {att.overtime_hours > 0 && (
+                          <span className="inline-flex items-center gap-1 mt-1 px-2 py-0.5 rounded text-[11px] font-semibold bg-purple-100 text-purple-800 border border-purple-200">
+                            ⚡ Overtime (+{att.overtime_hours}h)
+                          </span>
+                        )}
+                      </div>
+                    ) : (
+                      <span className="text-amber-500 font-sans font-semibold">Active</span>
+                    )}
                   </td>
                   <td className="px-6 py-4 text-gray-700 font-semibold">
                     {att.worked_hours ? `${Number(att.worked_hours).toFixed(2)}h` : '—'}
                   </td>
-                  <td className="px-6 py-4">
-                    <span
-                      className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                        att.status === 'done'
-                          ? 'bg-emerald-100 text-emerald-800'
-                          : att.status === 'in_progress'
-                          ? 'bg-amber-100 text-amber-800 animate-pulse'
-                          : att.status === 'corrected'
-                          ? 'bg-blue-100 text-blue-800'
-                          : 'bg-rose-100 text-rose-800'
-                      }`}
-                    >
-                      {att.status}
-                    </span>
+                  <td className="px-6 py-4 space-y-1">
+                    <div>
+                      <span
+                        className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                          att.status === 'done'
+                            ? 'bg-emerald-100 text-emerald-800'
+                            : att.status === 'in_progress'
+                            ? 'bg-amber-100 text-amber-800 animate-pulse'
+                            : att.status === 'corrected'
+                            ? 'bg-blue-100 text-blue-800'
+                            : 'bg-rose-100 text-rose-800'
+                        }`}
+                      >
+                        {att.status}
+                      </span>
+                    </div>
                   </td>
                   {canEdit && (
                     <td className="px-6 py-4 text-right">
