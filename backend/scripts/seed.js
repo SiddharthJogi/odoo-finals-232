@@ -72,7 +72,7 @@ async function seed() {
   const structureId = structRows[0].id;
 
   const rules = [
-    { name: 'Basic Salary', code: 'BASIC', category: 'basic', sequence: 1, calc_method: 'fixed', amount: null, base_code: null, formula_text: 'contract_wage' },
+    { name: 'Basic Salary', code: 'BASIC', category: 'basic', sequence: 1, calc_method: 'formula', amount: null, base_code: null, formula_text: 'contract_wage' },
     { name: 'House Rent Allowance', code: 'HRA', category: 'allowance', sequence: 2, calc_method: 'percentage', amount: 20, base_code: 'BASIC', formula_text: null },
     { name: 'Transport Allowance', code: 'TA', category: 'allowance', sequence: 3, calc_method: 'fixed', amount: 3000, base_code: null, formula_text: null },
     { name: 'Provident Fund', code: 'PF', category: 'deduction', sequence: 4, calc_method: 'percentage', amount: 12, base_code: 'BASIC', formula_text: null },

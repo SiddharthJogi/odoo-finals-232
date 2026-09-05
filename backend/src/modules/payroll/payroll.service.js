@@ -4,6 +4,40 @@ const hrCoreService = require('../hr-core/hrCore.service');
 const db = require('../../db');
 const { PayrollError, ValidationError, NotFoundError } = require('../../shared/errors');
 
+async function getPayrollInputs(employeeId, periodStart, periodEnd) {
+  const raw = await repo.findPayrollInputs(employeeId, periodStart, periodEnd);
+  const periodWorkingDays = Number(raw.period_working_days || 0);
+  const attendanceDays = Number(raw.attendance_days || 0);
+  const paidLeaveDays = Number(raw.paid_leave_days || 0);
+  const unpaidLeaveDays = Number(raw.unpaid_leave_days || 0);
+  const payableDays = Math.max(0, Math.min(
+    periodWorkingDays,
+    attendanceDays + paidLeaveDays
+  ));
+
+  return {
+    ...raw,
+    attendance_days: attendanceDays,
+    attendance_hours: Number(raw.attendance_hours || 0),
+    leave_days: paidLeaveDays + unpaidLeaveDays,
+    unpaid_leave_days: unpaidLeaveDays,
+    worked_days: payableDays,
+    payroll_factor: periodWorkingDays > 0 ? payableDays / periodWorkingDays : 0,
+  };
+}
+
+async function calculateEmployeePayslip({ employeeId, contract, structure, rules, periodStart, periodEnd }) {
+  const payrollInputs = await getPayrollInputs(employeeId, periodStart, periodEnd);
+  const result = await computePayslip({
+    contract,
+    structure,
+    rules,
+    workedDays: payrollInputs.worked_days,
+    payrollInputs,
+  });
+  return { ...result, payrollInputs };
+}
+
 // ───────────── Salary Structures ─────────────
 async function listStructures() {
   return repo.findAllStructures();
@@ -111,17 +145,13 @@ async function createPayrun(data, createdBy) {
         warningReason = 'Missing bank account information';
       }
 
-      // Compute payslip via rule engine
-      // workedDays: for skeleton, default to calendar days in period
-      const periodDays = Math.ceil(
-        (new Date(data.period_end) - new Date(data.period_start)) / (1000 * 60 * 60 * 24)
-      ) + 1;
-
-      const result = await computePayslip({
+      const result = await calculateEmployeePayslip({
+        employeeId: empId,
         contract,
         structure,
         rules,
-        workedDays: periodDays,
+        periodStart: data.period_start,
+        periodEnd: data.period_end,
       });
 
       // Insert payslip
@@ -129,7 +159,7 @@ async function createPayrun(data, createdBy) {
         payrun_id: payrun.id,
         employee_id: empId,
         contract_id: contract.id,
-        worked_days: periodDays,
+        worked_days: result.payrollInputs.worked_days,
         gross_total: result.gross_total,
         net_total: result.net_total,
         has_warning: hasWarning,
@@ -211,6 +241,43 @@ async function transitionPayrun(payrunId, targetStatus) {
   const client = await db.getClient();
   try {
     await client.query('BEGIN');
+    if (targetStatus === 'computed') {
+      const structure = await repo.findStructureById(payrun.structure_id);
+      const rules = await repo.findRulesByStructure(payrun.structure_id);
+      const payslips = (await repo.findPayslipsByPayrun(payrunId)) || [];
+
+      for (const payslip of payslips) {
+        const contract = await hrCoreService.getApplicableContract(
+          payslip.employee_id,
+          payrun.period_start,
+          payrun.period_end
+        );
+        const result = await calculateEmployeePayslip({
+          employeeId: payslip.employee_id,
+          contract,
+          structure,
+          rules,
+          periodStart: payrun.period_start,
+          periodEnd: payrun.period_end,
+        });
+        await repo.updatePayslipCalculation(payslip.id, {
+          worked_days: result.payrollInputs.worked_days,
+          gross_total: result.gross_total,
+          net_total: result.net_total,
+        }, client);
+        await repo.deletePayslipLines(payslip.id, client);
+        for (const line of result.lines) {
+          await repo.insertPayslipLine({
+            payslip_id: payslip.id,
+            rule_id: line.rule_id,
+            label: line.label,
+            category: line.category,
+            sequence: line.sequence,
+            value: line.value,
+          }, client);
+        }
+      }
+    }
     const updated = await repo.updatePayrunStatus(payrunId, targetStatus, client);
     await repo.updatePayslipStatus(payrunId, targetStatus, client);
     await client.query('COMMIT');

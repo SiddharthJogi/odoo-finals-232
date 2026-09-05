@@ -13,13 +13,23 @@ const { PayrollError } = require('../../shared/errors');
  * @param {object} params.contract - Employee's applicable contract (must have .wage)
  * @param {object} params.structure - Salary structure record
  * @param {Array}  params.rules - Salary rules sorted by sequence
- * @param {number} params.workedDays - Number of worked days in the period
+ * @param {number} params.workedDays - Number of payable days in the period
+ * @param {object} params.payrollInputs - Attendance and leave metrics for the period
  * @returns {{ lines: Array, gross_total: number, net_total: number }}
  */
-async function computePayslip({ contract, structure, rules, workedDays }) {
+async function computePayslip({ contract, structure, rules, workedDays, payrollInputs = {} }) {
+  const baseContractWage = Number(contract.wage);
+  const payrollFactor = Number(payrollInputs.payroll_factor ?? 1);
   const context = {
-    contract_wage: Number(contract.wage),
+    base_contract_wage: baseContractWage,
+    contract_wage: Math.round(baseContractWage * payrollFactor * 100) / 100,
+    payroll_wage: Math.round(baseContractWage * payrollFactor * 100) / 100,
     worked_days: workedDays,
+    attendance_days: Number(payrollInputs.attendance_days || 0),
+    attendance_hours: Number(payrollInputs.attendance_hours || 0),
+    leave_days: Number(payrollInputs.leave_days || 0),
+    unpaid_leave_days: Number(payrollInputs.unpaid_leave_days || 0),
+    payroll_factor: payrollFactor,
   };
   const lines = [];
 
