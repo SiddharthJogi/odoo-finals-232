@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useAuth } from '../../auth/AuthContext';
 import client from '../../api/client';
 import { useToast } from '../../components/Toast';
 import { CalendarDays, CheckCircle2, XCircle, Clock, Plus, X } from 'lucide-react';
@@ -9,40 +10,106 @@ const STATUS_STYLES = {
   refused: 'bg-red-50 text-red-800 border border-red-200',
 };
 
-function SkeletonRow() {
-  return (
-    <tr className="animate-pulse">
-      <td className="px-5 py-4"><div className="h-4 bg-gray-100 rounded w-32" /></td>
-      <td className="px-5 py-4"><div className="h-4 bg-gray-100 rounded w-24" /></td>
-      <td className="px-5 py-4"><div className="h-4 bg-gray-100 rounded w-32" /></td>
-      <td className="px-5 py-4"><div className="h-4 bg-gray-100 rounded w-12" /></td>
-      <td className="px-5 py-4"><div className="h-5 bg-gray-100 rounded-full w-16" /></td>
-      <td className="px-5 py-4"><div className="h-7 bg-gray-100 rounded w-28" /></td>
-    </tr>
-  );
-}
-
 export default function Requests() {
+  const { role, user } = useAuth();
+  const { addToast } = useToast();
   const [requests, setRequests] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [activeTab, setActiveTab] = useState('all');
   const [actionLoading, setActionLoading] = useState(null);
-  const { addToast } = useToast();
+
+  // Modal State
+  const [showModal, setShowModal] = useState(false);
+  const [types, setTypes] = useState([]);
+  const [allocations, setAllocations] = useState([]);
+  const [selectedType, setSelectedType] = useState('');
+  const [startDate, setStartDate] = useState('');
+  const [endDate, setEndDate] = useState('');
+  const [duration, setDuration] = useState(1);
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState('');
+
+  const canApprove = ['admin', 'hr_manager'].includes(role);
 
   useEffect(() => {
-    client.get('/time-off/requests')
-      .then(({ data }) => setRequests(data))
-      .catch(() => addToast('Failed to load time off requests', 'error'))
-      .finally(() => setLoading(false));
+    fetchRequests();
+    fetchModalOptions();
   }, []);
+
+  const fetchRequests = async () => {
+    setLoading(true);
+    try {
+      const { data } = await client.get('/time-off/requests');
+      setRequests(data);
+    } catch (err) {
+      addToast('Failed to load time off requests', 'error');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const fetchModalOptions = async () => {
+    try {
+      const [typesRes, allocRes] = await Promise.all([
+        client.get('/time-off/types'),
+        client.get('/time-off/allocations'),
+      ]);
+      setTypes(typesRes.data);
+      setAllocations(allocRes.data);
+      if (typesRes.data.length > 0) {
+        setSelectedType(typesRes.data[0].id.toString());
+      }
+    } catch (err) {
+      console.error('Failed to load leave types', err);
+    }
+  };
+
+  // Auto calculate duration in days
+  useEffect(() => {
+    if (startDate && endDate) {
+      const start = new Date(startDate);
+      const end = new Date(endDate);
+      const diffTime = end.getTime() - start.getTime();
+      if (diffTime >= 0) {
+        const days = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1;
+        setDuration(days);
+      }
+    }
+  }, [startDate, endDate]);
+
+  const handleCreateRequest = async (e) => {
+    e.preventDefault();
+    setError('');
+    setSubmitting(true);
+    try {
+      await client.post('/time-off/requests', {
+        type_id: parseInt(selectedType, 10),
+        start_date: startDate,
+        end_date: endDate,
+        duration: Number(duration),
+      });
+      setShowModal(false);
+      setStartDate('');
+      setEndDate('');
+      addToast('Time off request submitted successfully', 'success');
+      fetchRequests();
+    } catch (err) {
+      const msg = err.response?.data?.error || 'Failed to submit leave request';
+      setError(msg);
+      addToast(msg, 'error');
+    } finally {
+      setSubmitting(false);
+    }
+  };
 
   const handleApprove = async (id) => {
     setActionLoading(id + '-approve');
     try {
       await client.patch(`/time-off/requests/${id}/approve`);
-      setRequests((prev) => prev.map((r) => r.id === id ? { ...r, status: 'approved' } : r));
+      setRequests((prev) => prev.map((r) => (r.id === id ? { ...r, status: 'approved' } : r)));
       addToast('Time off request approved. Allocation balance updated.', 'success');
     } catch (err) {
-      addToast(err.response?.data?.error || 'Failed to approve request', 'error');
+      addToast(err.response?.data?.error || 'Approval failed', 'error');
     } finally {
       setActionLoading(null);
     }
@@ -52,83 +119,123 @@ export default function Requests() {
     setActionLoading(id + '-refuse');
     try {
       await client.patch(`/time-off/requests/${id}/refuse`);
-      setRequests((prev) => prev.map((r) => r.id === id ? { ...r, status: 'refused' } : r));
+      setRequests((prev) => prev.map((r) => (r.id === id ? { ...r, status: 'refused' } : r)));
       addToast('Time off request refused.', 'warning');
     } catch (err) {
-      addToast(err.response?.data?.error || 'Failed to refuse request', 'error');
+      addToast(err.response?.data?.error || 'Refusal failed', 'error');
     } finally {
       setActionLoading(null);
     }
   };
 
+  const filteredRequests = requests.filter((r) => {
+    if (activeTab === 'all') return true;
+    return r.status === activeTab;
+  });
+
+  const getSelectedTypeObj = () => types.find((t) => t.id.toString() === selectedType);
+  const getSelectedTypeAlloc = () => allocations.find((a) => a.type_id.toString() === selectedType);
   const pendingCount = requests.filter((r) => r.status === 'draft').length;
 
   return (
-    <div>
+    <div className="space-y-6">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
-          <h1 className="text-2xl font-extrabold text-gray-900 flex items-center gap-2">
+          <h1 className="text-2xl font-bold text-gray-900 tracking-tight flex items-center gap-2">
             <CalendarDays className="w-7 h-7 text-amber-500" />
             Time Off Requests
           </h1>
-          <p className="text-xs text-gray-500 mt-1">
-            {pendingCount > 0
-              ? <span className="text-amber-700 font-semibold">{pendingCount} pending approval</span>
-              : 'All requests reviewed'}
+          <p className="text-sm text-gray-500 mt-1">
+            {pendingCount > 0 ? (
+              <span className="text-amber-700 font-semibold">{pendingCount} pending approval</span>
+            ) : (
+              'Submit and manage employee leave applications'
+            )}
           </p>
         </div>
+        <button
+          onClick={() => setShowModal(true)}
+          className="inline-flex items-center gap-2 px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-semibold shadow-sm transition"
+        >
+          <Plus className="w-4 h-4" />
+          Request Time Off
+        </button>
       </div>
 
-      {/* Table */}
-      <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-        <table className="min-w-full divide-y divide-gray-200">
-          <thead className="bg-gray-50">
-            <tr>
-              <th className="px-5 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Employee</th>
-              <th className="px-5 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Leave Type</th>
-              <th className="px-5 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Period</th>
-              <th className="px-5 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Days</th>
-              <th className="px-5 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Status</th>
-              <th className="px-5 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Actions</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-gray-200">
-            {loading
-              ? [...Array(5)].map((_, i) => <SkeletonRow key={i} />)
-              : requests.map((req) => (
-                <tr key={req.id} className={`hover:bg-gray-50 transition ${req.status === 'draft' ? 'bg-amber-50/30' : ''}`}>
-                  <td className="px-5 py-4">
-                    <p className="text-sm font-semibold text-gray-900">{req.employee_name || `Employee #${req.employee_id}`}</p>
-                    {req.department_name && <p className="text-xs text-gray-400 mt-0.5">{req.department_name}</p>}
+      {/* Tabs Filter */}
+      <div className="flex gap-2 border-b border-gray-200 pb-2">
+        {['all', 'draft', 'approved', 'refused'].map((tab) => (
+          <button
+            key={tab}
+            onClick={() => setActiveTab(tab)}
+            className={`px-4 py-2 rounded-xl text-xs font-semibold uppercase tracking-wider transition ${
+              activeTab === tab
+                ? 'bg-blue-600 text-white shadow-sm'
+                : 'text-gray-600 hover:bg-gray-100'
+            }`}
+          >
+            {tab}
+          </button>
+        ))}
+      </div>
+
+      {/* Table View */}
+      <div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
+        {loading ? (
+          <div className="text-center py-12 text-gray-400">Loading leave requests...</div>
+        ) : (
+          <table className="min-w-full divide-y divide-gray-200 text-left">
+            <thead className="bg-gray-50/50 text-xs font-semibold uppercase text-gray-500 tracking-wider">
+              <tr>
+                <th className="px-6 py-4">Employee</th>
+                <th className="px-6 py-4">Leave Type</th>
+                <th className="px-6 py-4">Dates</th>
+                <th className="px-6 py-4">Duration</th>
+                <th className="px-6 py-4">Status</th>
+                <th className="px-6 py-4 text-right">Actions</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-100 text-sm">
+              {filteredRequests.map((req) => (
+                <tr key={req.id} className={`hover:bg-gray-50/80 transition-colors ${req.status === 'draft' ? 'bg-amber-50/20' : ''}`}>
+                  <td className="px-6 py-4 font-medium text-gray-900">
+                    <div>{req.employee_name || `Employee #${req.employee_id}`}</div>
+                    {req.department_name && <div className="text-xs text-gray-400 mt-0.5">{req.department_name}</div>}
                   </td>
-                  <td className="px-5 py-4 text-sm text-gray-600">{req.type_name || '—'}</td>
-                  <td className="px-5 py-4 text-sm text-gray-600">
-                    <span className="font-medium">{req.start_date}</span>
-                    <span className="text-gray-400 mx-1">→</span>
-                    <span className="font-medium">{req.end_date}</span>
+                  <td className="px-6 py-4 text-gray-700">
+                    <span className="font-medium">{req.type_name || `Type #${req.type_id}`}</span>
                   </td>
-                  <td className="px-5 py-4 text-sm font-bold text-gray-900">{req.duration}d</td>
-                  <td className="px-5 py-4">
-                    <span className={`px-2.5 py-0.5 text-xs font-bold rounded-full ${STATUS_STYLES[req.status] || 'bg-gray-100 text-gray-600'}`}>
-                      {req.status?.toUpperCase()}
+                  <td className="px-6 py-4 text-gray-600 font-mono text-xs">
+                    {req.start_date} → {req.end_date}
+                  </td>
+                  <td className="px-6 py-4 font-medium text-gray-800">
+                    {req.duration} {req.type_unit || 'days'}
+                  </td>
+                  <td className="px-6 py-4">
+                    <span
+                      className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                        STATUS_STYLES[req.status] || 'bg-gray-100 text-gray-600'
+                      }`}
+                    >
+                      {req.status}
                     </span>
                   </td>
-                  <td className="px-5 py-4">
-                    {req.status === 'draft' && (
-                      <div className="flex items-center gap-2">
+                  <td className="px-6 py-4 text-right">
+                    {req.status === 'draft' && canApprove && (
+                      <div className="flex gap-2 justify-end">
                         <button
                           onClick={() => handleApprove(req.id)}
-                          disabled={!!actionLoading}
-                          className="flex items-center gap-1 text-xs px-3 py-1.5 bg-emerald-600 text-white font-semibold rounded-lg hover:bg-emerald-700 transition disabled:opacity-50"
+                          disabled={actionLoading === req.id + '-approve'}
+                          className="text-xs px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg transition font-medium flex items-center gap-1 disabled:opacity-50"
                         >
                           <CheckCircle2 className="w-3.5 h-3.5" />
                           {actionLoading === req.id + '-approve' ? '...' : 'Approve'}
                         </button>
                         <button
                           onClick={() => handleRefuse(req.id)}
-                          disabled={!!actionLoading}
-                          className="flex items-center gap-1 text-xs px-3 py-1.5 bg-red-100 text-red-700 font-semibold rounded-lg hover:bg-red-200 transition disabled:opacity-50"
+                          disabled={actionLoading === req.id + '-refuse'}
+                          className="text-xs px-3 py-1.5 bg-rose-600 hover:bg-rose-700 text-white rounded-lg transition font-medium flex items-center gap-1 disabled:opacity-50"
                         >
                           <XCircle className="w-3.5 h-3.5" />
                           {actionLoading === req.id + '-refuse' ? '...' : 'Refuse'}
@@ -136,29 +243,121 @@ export default function Requests() {
                       </div>
                     )}
                     {req.status === 'approved' && (
-                      <span className="text-xs text-emerald-700 font-semibold flex items-center gap-1">
+                      <span className="text-xs text-emerald-700 font-semibold inline-flex items-center gap-1">
                         <CheckCircle2 className="w-3.5 h-3.5" /> Approved
                       </span>
                     )}
                     {req.status === 'refused' && (
-                      <span className="text-xs text-red-600 font-semibold flex items-center gap-1">
+                      <span className="text-xs text-rose-600 font-semibold inline-flex items-center gap-1">
                         <XCircle className="w-3.5 h-3.5" /> Refused
                       </span>
                     )}
                   </td>
                 </tr>
               ))}
-          </tbody>
-        </table>
-
-        {!loading && requests.length === 0 && (
-          <div className="py-16 text-center">
-            <CalendarDays className="w-12 h-12 text-gray-200 mx-auto mb-3" />
-            <p className="text-sm font-semibold text-gray-500">No time off requests yet</p>
-            <p className="text-xs text-gray-400 mt-1">Employees can submit requests from the Allocations page.</p>
-          </div>
+            </tbody>
+          </table>
+        )}
+        {!loading && filteredRequests.length === 0 && (
+          <div className="text-center py-12 text-gray-400">No time off requests found.</div>
         )}
       </div>
+
+      {/* New Request Modal */}
+      {showModal && (
+        <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl space-y-4">
+            <div className="flex justify-between items-center">
+              <h3 className="text-lg font-bold text-gray-900">Request Time Off</h3>
+              <button onClick={() => setShowModal(false)} className="text-gray-400 hover:text-gray-600">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <p className="text-xs text-gray-500">Apply for annual leave, sick leave, or time off</p>
+
+            {error && <div className="p-3 bg-rose-50 text-rose-700 text-xs rounded-xl">{error}</div>}
+
+            <form onSubmit={handleCreateRequest} className="space-y-4">
+              <div>
+                <label className="block text-xs font-semibold text-gray-600 mb-1">Time Off Type</label>
+                <select
+                  value={selectedType}
+                  onChange={(e) => setSelectedType(e.target.value)}
+                  className="w-full text-sm border-gray-300 rounded-xl px-3 py-2 border bg-white focus:ring-blue-500"
+                >
+                  {types.map((t) => (
+                    <option key={t.id} value={t.id}>
+                      {t.name} ({t.unit})
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {getSelectedTypeObj()?.requires_allocation && (
+                <div className="p-3 bg-blue-50/70 border border-blue-100 rounded-xl text-xs text-blue-800">
+                  <span>Balance Remaining: </span>
+                  <span className="font-bold">
+                    {getSelectedTypeAlloc()?.remaining ?? '—'} {getSelectedTypeObj()?.unit}
+                  </span>
+                </div>
+              )}
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-semibold text-gray-600 mb-1">Start Date</label>
+                  <input
+                    type="date"
+                    required
+                    value={startDate}
+                    onChange={(e) => setStartDate(e.target.value)}
+                    className="w-full text-sm border-gray-300 rounded-xl px-3 py-2 border focus:ring-blue-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-gray-600 mb-1">End Date</label>
+                  <input
+                    type="date"
+                    required
+                    value={endDate}
+                    onChange={(e) => setEndDate(e.target.value)}
+                    className="w-full text-sm border-gray-300 rounded-xl px-3 py-2 border focus:ring-blue-500"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-gray-600 mb-1">Duration ({getSelectedTypeObj()?.unit || 'days'})</label>
+                <input
+                  type="number"
+                  step="0.5"
+                  min="0.5"
+                  required
+                  value={duration}
+                  onChange={(e) => setDuration(parseFloat(e.target.value))}
+                  className="w-full text-sm border-gray-300 rounded-xl px-3 py-2 border focus:ring-blue-500"
+                />
+              </div>
+
+              <div className="flex gap-3 pt-2 justify-end">
+                <button
+                  type="button"
+                  onClick={() => setShowModal(false)}
+                  className="px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded-xl"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={submitting}
+                  className="px-5 py-2 text-sm font-semibold bg-blue-600 hover:bg-blue-700 text-white rounded-xl shadow-sm transition disabled:opacity-50"
+                >
+                  {submitting ? 'Submitting...' : 'Submit Request'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

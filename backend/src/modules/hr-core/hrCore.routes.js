@@ -24,6 +24,7 @@ router.post('/employees', authenticate, requireRole('admin', 'hr_manager'), ctrl
 router.put('/employees/:id', authenticate, requireRole('admin', 'hr_manager'), ctrl.updateEmployee);
 
 // ───────────── Contracts ─────────────
+router.get('/contracts', authenticate, requireRole('admin', 'hr_manager', 'hr_payroll_manager', 'hr_payroll_user'), ctrl.listAllContracts);
 router.get('/employees/:id/contracts', authenticate, ctrl.listContracts);
 router.post('/contracts', authenticate, requireRole('admin', 'hr_manager'), ctrl.createContract);
 

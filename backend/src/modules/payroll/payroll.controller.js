@@ -105,76 +105,87 @@ const getPayslipPdf = asyncHandler(async (req, res) => {
   res.setHeader('Content-Disposition', `inline; filename=payslip_${payslip.id}.pdf`);
 
   const PDFDocument = require('pdfkit');
-  const doc = new PDFDocument({ size: 'A4', margin: 40 });
+  const doc = new PDFDocument({ margin: 50, size: 'A4' });
   doc.pipe(res);
 
-  // Header / Branding
-  doc.fillColor('#1E40AF').fontSize(22).text('PeoplePay360', { align: 'left' });
-  doc.fillColor('#4B5563').fontSize(10).text('Enterprise HR & Payroll Platform', { align: 'left' });
-  doc.moveDown(0.5);
+  // --- Header ---
+  doc.fontSize(24).font('Helvetica-Bold').text('PeoplePay360', { align: 'left' });
+  doc.fontSize(10).font('Helvetica').fillColor('gray')
+    .text('123 Business Avenue, Suite 100', { align: 'left' })
+    .text('City, State, 12345', { align: 'left' })
+    .text('info@peoplepay360.com', { align: 'left' });
+  
+  doc.moveUp(4);
+  doc.fontSize(20).fillColor('black').text('PAYSLIP', { align: 'right' });
+  doc.fontSize(10).fillColor('gray').text(`ID: #${String(payslip.id).padStart(6, '0')}`, { align: 'right' });
+  doc.text(`Status: ${payslip.status.toUpperCase()}`, { align: 'right' });
+  doc.moveDown(3);
 
-  doc.strokeColor('#E5E7EB').lineWidth(1).moveTo(40, doc.y).lineTo(550, doc.y).stroke();
-  doc.moveDown();
-
-  // Payslip Metadata Table Header
-  doc.fillColor('#111827').fontSize(16).text(`PAYSLIP STATEMENT`, { align: 'left' });
-  doc.moveDown(0.5);
-
-  doc.fillColor('#374151').fontSize(10);
-  doc.text(`Payslip Reference #: PS-${String(payslip.id).padStart(5, '0')}`);
-  doc.text(`Employee Name: ${payslip.employee_name || 'Employee #' + payslip.employee_id}`);
-  doc.text(`Pay Period / Days Worked: ${payslip.worked_days} Days`);
-  doc.text(`Disbursement Account: ${payslip.bank_account || 'NOT REGISTERED (WARNING)'}`);
-  doc.moveDown();
-
-  if (payslip.has_warning) {
-    doc.rect(40, doc.y, 510, 25).fill('#FEF2F2').stroke('#FCA5A5');
-    doc.fillColor('#991B1B').fontSize(9).text(`⚠ COMPLIANCE WARNING: ${payslip.warning_reason}`, 50, doc.y - 18);
-    doc.moveDown(1.5);
-  }
-
-  // Earnings & Deductions Table
-  doc.fillColor('#1F2937').fontSize(12).text('Salary Rule Breakdown', { underline: true });
-  doc.moveDown(0.5);
-
-  // Table header
-  let y = doc.y;
-  doc.rect(40, y, 510, 20).fill('#F3F4F6');
-  doc.fillColor('#374151').fontSize(9);
-  doc.text('Rule / Item', 50, y + 5);
-  doc.text('Category', 280, y + 5);
-  doc.text('Amount (INR)', 450, y + 5, { align: 'right' });
-
-  y += 25;
-  for (const line of payslip.lines || []) {
-    const isDeduction = line.category === 'deduction';
-    doc.fillColor('#111827').fontSize(9);
-    doc.text(line.label, 50, y);
-    doc.fillColor(isDeduction ? '#DC2626' : '#16A34A').text(line.category.toUpperCase(), 280, y);
-    doc.fillColor('#111827').text(
-      `${isDeduction ? '-' : ''}INR ${Number(line.value).toLocaleString('en-IN', { minimumFractionDigits: 2 })}`,
-      450,
-      y,
-      { align: 'right' }
-    );
-    y += 18;
-    doc.strokeColor('#F3F4F6').lineWidth(0.5).moveTo(40, y - 4).lineTo(550, y - 4).stroke();
-  }
-
-  y += 10;
-  doc.strokeColor('#9CA3AF').lineWidth(1).moveTo(40, y).lineTo(550, y).stroke();
-  y += 10;
-
-  // Summary totals
-  doc.fontSize(10).fillColor('#374151').text('Gross Total Earnings:', 300, y);
-  doc.fontSize(10).fillColor('#111827').text(`INR ${Number(payslip.gross_total).toLocaleString('en-IN', { minimumFractionDigits: 2 })}`, 450, y, { align: 'right' });
-  y += 18;
-
-  doc.fontSize(11).fillColor('#15803D').text('Net Salary Payable:', 300, y);
-  doc.fontSize(11).fillColor('#15803D').text(`INR ${Number(payslip.net_total).toLocaleString('en-IN', { minimumFractionDigits: 2 })}`, 450, y, { align: 'right' });
-
+  // --- Employee Info ---
+  doc.rect(50, 150, 495, 70).fillAndStroke('#f9fafb', '#e5e7eb');
+  doc.fillColor('black').font('Helvetica-Bold').fontSize(11)
+    .text('Employee Details', 65, 160);
+  doc.font('Helvetica').fontSize(10)
+    .text(`Name: ${payslip.employee_name || 'Employee #' + payslip.employee_id}`, 65, 175)
+    .text(`Worked Days: ${payslip.worked_days}`, 65, 190)
+    .text(`Contract ID: ${payslip.contract_id}`, 300, 175)
+    .text(`Bank Account: ${payslip.bank_account || 'N/A'}`, 300, 190);
   doc.moveDown(4);
-  doc.fillColor('#9CA3AF').fontSize(8).text('This is a system-generated payslip issued by PeoplePay360 ERP.', { align: 'center' });
+
+  // --- Breakdown Table ---
+  const tableTop = 250;
+  
+  // Table Header
+  doc.rect(50, tableTop, 495, 20).fillAndStroke('#374151', '#374151');
+  doc.fillColor('white').font('Helvetica-Bold').fontSize(10)
+    .text('Description', 60, tableTop + 5)
+    .text('Category', 250, tableTop + 5)
+    .text('Amount', 400, tableTop + 5, { align: 'right', width: 130 });
+  
+  // Table Rows
+  let y = tableTop + 25;
+  doc.fillColor('black').font('Helvetica');
+  
+  for (const line of payslip.lines || []) {
+    doc.text(line.label, 60, y)
+       .text(line.category, 250, y)
+       .text(Number(line.value).toFixed(2), 400, y, { align: 'right', width: 130 });
+    
+    // Draw row bottom border
+    doc.moveTo(50, y + 15).lineTo(545, y + 15).lineWidth(0.5).stroke('#e5e7eb');
+    y += 20;
+  }
+
+  // --- Totals ---
+  doc.moveDown(2);
+  const totalsTop = y + 20;
+  doc.rect(350, totalsTop, 195, 65).fillAndStroke('#f9fafb', '#e5e7eb');
+  
+  doc.font('Helvetica').fontSize(10)
+    .text('Gross Total:', 365, totalsTop + 10)
+    .text('Deductions:', 365, totalsTop + 25);
+  
+  doc.font('Helvetica-Bold')
+    .text(Number(payslip.gross_total).toFixed(2), 450, totalsTop + 10, { align: 'right', width: 80 })
+    .text(Number(payslip.gross_total - payslip.net_total).toFixed(2), 450, totalsTop + 25, { align: 'right', width: 80 });
+
+  doc.moveTo(350, totalsTop + 40).lineTo(545, totalsTop + 40).lineWidth(1).stroke('#e5e7eb');
+  
+  doc.fontSize(12).text('Net Salary:', 365, totalsTop + 48);
+  doc.text(Number(payslip.net_total).toFixed(2), 450, totalsTop + 48, { align: 'right', width: 80 });
+
+  // --- Warning Block ---
+  if (payslip.has_warning) {
+    doc.moveDown(3);
+    const warningY = doc.y;
+    doc.rect(50, warningY, 495, 30).fillAndStroke('#fef2f2', '#fecaca');
+    doc.fillColor('#dc2626').font('Helvetica-Bold').fontSize(10)
+      .text(`⚠ WARNING: ${payslip.warning_reason}`, 60, warningY + 10);
+  }
+
+  // Footer
+  doc.font('Helvetica').fontSize(8).fillColor('gray');
+  doc.text('This is a computer-generated document. No signature is required.', 50, 750, { align: 'center', width: 495 });
 
   doc.end();
 });

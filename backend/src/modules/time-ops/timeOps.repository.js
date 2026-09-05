@@ -2,37 +2,57 @@ const db = require('../../db');
 
 // ───────────── Attendance ─────────────
 async function findAttendances(filters = {}) {
-  let sql = 'SELECT * FROM attendances WHERE 1=1';
+  let sql = `
+    SELECT 
+      a.*, 
+      e.name AS employee_name, 
+      e.job_position,
+      sl.start_time AS scheduled_start,
+      sl.end_time AS scheduled_end
+    FROM attendances a
+    LEFT JOIN employees e ON a.employee_id = e.id
+    LEFT JOIN schedule_lines sl ON sl.schedule_id = COALESCE(e.schedule_id, 1)
+      AND sl.day_of_week = EXTRACT(DOW FROM a.check_in)
+    WHERE 1=1
+  `;
   const params = [];
   let idx = 1;
 
   if (filters.employee_id) {
-    sql += ` AND employee_id = $${idx++}`;
+    sql += ` AND a.employee_id = $${idx++}`;
     params.push(filters.employee_id);
   }
   if (filters.status) {
-    sql += ` AND status = $${idx++}`;
+    sql += ` AND a.status = $${idx++}`;
     params.push(filters.status);
   }
   if (filters.date_from) {
-    sql += ` AND check_in >= $${idx++}`;
+    sql += ` AND a.check_in >= $${idx++}`;
     params.push(filters.date_from);
   }
   if (filters.date_to) {
-    sql += ` AND check_in <= $${idx++}`;
+    sql += ` AND a.check_in <= $${idx++}`;
     params.push(filters.date_to);
   }
 
-  sql += ' ORDER BY check_in DESC';
+  sql += ' ORDER BY a.check_in DESC';
   const { rows } = await db.query(sql, params);
   return rows;
 }
 
 async function findOpenAttendance(employeeId) {
   const { rows } = await db.query(
-    `SELECT * FROM attendances
-     WHERE employee_id = $1 AND check_out IS NULL AND status = 'in_progress'
-     ORDER BY check_in DESC LIMIT 1`,
+    `SELECT 
+       a.*, 
+       e.name AS employee_name,
+       sl.start_time AS scheduled_start,
+       sl.end_time AS scheduled_end
+     FROM attendances a
+     LEFT JOIN employees e ON a.employee_id = e.id
+     LEFT JOIN schedule_lines sl ON sl.schedule_id = COALESCE(e.schedule_id, 1)
+       AND sl.day_of_week = EXTRACT(DOW FROM a.check_in)
+     WHERE a.employee_id = $1 AND a.check_out IS NULL AND a.status = 'in_progress'
+     ORDER BY a.check_in DESC LIMIT 1`,
     [employeeId]
   );
   return rows[0] || null;
@@ -94,20 +114,26 @@ async function insertTimeOffType(data) {
 
 // ───────────── Allocations ─────────────
 async function findAllocations(filters = {}) {
-  let sql = 'SELECT * FROM allocations WHERE 1=1';
+  let sql = `
+    SELECT al.*, e.name AS employee_name, t.name AS type_name, t.unit AS type_unit
+    FROM allocations al
+    LEFT JOIN employees e ON al.employee_id = e.id
+    LEFT JOIN time_off_types t ON al.type_id = t.id
+    WHERE 1=1
+  `;
   const params = [];
   let idx = 1;
 
   if (filters.employee_id) {
-    sql += ` AND employee_id = $${idx++}`;
+    sql += ` AND al.employee_id = $${idx++}`;
     params.push(filters.employee_id);
   }
   if (filters.type_id) {
-    sql += ` AND type_id = $${idx++}`;
+    sql += ` AND al.type_id = $${idx++}`;
     params.push(filters.type_id);
   }
 
-  sql += ' ORDER BY valid_from DESC';
+  sql += ' ORDER BY al.valid_from DESC';
   const { rows } = await db.query(sql, params);
   return rows;
 }
@@ -128,7 +154,7 @@ async function insertAllocation(data) {
   const { rows } = await db.query(
     `INSERT INTO allocations (employee_id, type_id, allocated, valid_from, valid_to, status)
      VALUES ($1, $2, $3, $4, $5, $6) RETURNING *`,
-    [data.employee_id, data.type_id, data.allocated, data.valid_from, data.valid_to || null, data.status]
+    [data.employee_id, data.type_id, data.allocated, data.valid_from, data.valid_to || null, data.status || 'approved']
   );
   return rows[0];
 }
@@ -155,26 +181,39 @@ async function restoreAllocation(allocationId, duration, client) {
 
 // ───────────── Time Off Requests ─────────────
 async function findTimeOffRequests(filters = {}) {
-  let sql = 'SELECT * FROM time_off_requests WHERE 1=1';
+  let sql = `
+    SELECT r.*, e.name AS employee_name, t.name AS type_name, t.unit AS type_unit
+    FROM time_off_requests r
+    LEFT JOIN employees e ON r.employee_id = e.id
+    LEFT JOIN time_off_types t ON r.type_id = t.id
+    WHERE 1=1
+  `;
   const params = [];
   let idx = 1;
 
   if (filters.employee_id) {
-    sql += ` AND employee_id = $${idx++}`;
+    sql += ` AND r.employee_id = $${idx++}`;
     params.push(filters.employee_id);
   }
   if (filters.status) {
-    sql += ` AND status = $${idx++}`;
+    sql += ` AND r.status = $${idx++}`;
     params.push(filters.status);
   }
 
-  sql += ' ORDER BY created_at DESC';
+  sql += ' ORDER BY r.created_at DESC';
   const { rows } = await db.query(sql, params);
   return rows;
 }
 
 async function findTimeOffRequestById(id) {
-  const { rows } = await db.query('SELECT * FROM time_off_requests WHERE id = $1', [id]);
+  const { rows } = await db.query(
+    `SELECT r.*, e.name AS employee_name, t.name AS type_name, t.unit AS type_unit
+     FROM time_off_requests r
+     LEFT JOIN employees e ON r.employee_id = e.id
+     LEFT JOIN time_off_types t ON r.type_id = t.id
+     WHERE r.id = $1`,
+    [id]
+  );
   return rows[0] || null;
 }
 
@@ -202,6 +241,34 @@ async function findTimeOffTypeById(id) {
   return rows[0] || null;
 }
 
+async function countLateAttendances(employeeId) {
+  const { rows } = await db.query(
+    `SELECT COUNT(*) FROM attendances
+     WHERE employee_id = $1 AND status = 'flagged'`,
+    [employeeId]
+  );
+  return parseInt(rows[0].count, 10);
+}
+
+// ───────────── Audit Logging ─────────────
+async function insertAuditLog({ userId, action, entity, entityId, beforeJson, afterJson, note }, client) {
+  const queryFn = client || db;
+  const { rows } = await queryFn.query(
+    `INSERT INTO audit_logs (user_id, action, entity, entity_id, before_json, after_json, note)
+     VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *`,
+    [
+      userId || null,
+      action,
+      entity,
+      entityId,
+      beforeJson ? JSON.stringify(beforeJson) : null,
+      afterJson ? JSON.stringify(afterJson) : null,
+      note || null,
+    ]
+  );
+  return rows[0];
+}
+
 module.exports = {
   findAttendances,
   findOpenAttendance,
@@ -220,4 +287,6 @@ module.exports = {
   insertTimeOffRequest,
   updateTimeOffRequestStatus,
   findTimeOffTypeById,
+  insertAuditLog,
+  countLateAttendances,
 };
