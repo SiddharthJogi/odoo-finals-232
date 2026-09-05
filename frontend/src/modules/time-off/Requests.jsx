@@ -190,27 +190,27 @@ export default function Requests() {
       </div>
 
       {/* Table View */}
-      <div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
+      <div className="bg-card rounded-3xl shadow-sm border border-border overflow-hidden">
         {loading ? (
-          <div className="text-center py-12 text-gray-400">Loading leave requests...</div>
+          <div className="text-center py-12 text-muted-foreground font-medium">Loading leave requests...</div>
         ) : (
-          <table className="min-w-full divide-y divide-gray-200 text-left">
-            <thead className="bg-gray-50/50 text-xs font-semibold uppercase text-gray-500 tracking-wider">
+          <table className="min-w-full text-left">
+            <thead className="bg-muted/50 text-[11px] font-bold uppercase text-muted-foreground tracking-wider border-b border-border">
               <tr>
                 <th className="px-6 py-4">Employee</th>
                 <th className="px-6 py-4">Leave Type</th>
                 <th className="px-6 py-4">Dates</th>
                 <th className="px-6 py-4">Duration</th>
-                <th className="px-6 py-4">Status & Deferred</th>
+                <th className="px-6 py-4">Status</th>
                 <th className="px-6 py-4 text-right">Actions</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-gray-100 text-sm">
+            <tbody className="divide-y divide-border text-sm">
               {filteredRequests.map((req) => (
-                <tr key={req.id} className={`hover:bg-gray-50/80 transition-colors ${req.status === 'draft' ? 'bg-amber-50/20' : ''}`}>
-                  <td className="px-6 py-4 font-medium text-gray-900">
+                <tr key={req.id} className={`hover:bg-muted/30 transition-colors ${req.status === 'draft' ? 'bg-amber-500/5' : ''}`}>
+                  <td className="px-6 py-4 font-semibold text-foreground">
                     <div>{req.employee_name || `Employee #${req.employee_id}`}</div>
-                    {req.department_name && <div className="text-xs text-gray-400 font-normal">{req.department_name}</div>}
+                    {req.department_name && <div className="text-xs text-muted-foreground mt-0.5 font-medium">{req.department_name}</div>}
                     {req.responsible_name && (
                       <div className="text-[11px] text-purple-600 font-normal">
                         Responsible: {req.responsible_name}
@@ -293,15 +293,15 @@ export default function Requests() {
 
       {/* New Request Modal */}
       {showModal && (
-        <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl space-y-4">
+        <div className="fixed inset-0 z-50 bg-background/80 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-card border border-border rounded-3xl max-w-md w-full p-8 shadow-2xl space-y-6">
             <div className="flex justify-between items-center">
-              <h3 className="text-lg font-bold text-gray-900">Request Time Off</h3>
-              <button onClick={() => setShowModal(false)} className="text-gray-400 hover:text-gray-600">
+              <h3 className="text-xl font-extrabold text-foreground tracking-tight">Request Time Off</h3>
+              <button onClick={() => setShowModal(false)} className="text-muted-foreground hover:text-foreground transition-colors">
                 <X className="w-5 h-5" />
               </button>
             </div>
-            <p className="text-xs text-gray-500">Apply for annual leave, sick leave, or time off</p>
+            <p className="text-sm text-muted-foreground font-medium">Apply for annual leave, sick leave, or time off</p>
 
             {error && <div className="p-3 bg-rose-50 text-rose-700 text-xs rounded-xl">{error}</div>}
 
