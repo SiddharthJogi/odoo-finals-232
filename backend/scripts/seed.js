@@ -85,7 +85,7 @@ async function seed() {
       `INSERT INTO salary_rules (structure_id, name, code, category, sequence, calc_method, amount, base_code, formula_text)
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
       [structureId, rule.name, rule.code, rule.category, rule.sequence, rule.calc_method,
-       rule.amount, rule.base_code, rule.formula_text]
+        rule.amount, rule.base_code, rule.formula_text]
     );
   }
   console.log('  ✓ Salary structure with 5 rules created');
@@ -135,7 +135,7 @@ async function seed() {
   for (const emp of empIds) {
     await db.query(
       `INSERT INTO contracts (employee_id, wage, start_date, structure_id, schedule_id, status)
-       VALUES ($1, $2, '2025-01-01', $3, $4, 'active')`,
+       VALUES ($1, $2, '2026-01-01', $3, $4, 'active')`,
       [emp.id, emp.wage, structureId, scheduleId]
     );
   }
@@ -181,21 +181,22 @@ async function seed() {
   for (const emp of empIds) {
     await db.query(
       `INSERT INTO allocations (employee_id, type_id, allocated, valid_from, valid_to, status)
-       VALUES ($1, $2, 20, '2025-01-01', '2027-12-31', 'approved')`,
+       VALUES ($1, $2, 20, '2026-01-01', '2026-12-31', 'approved')`,
       [emp.id, annualLeaveId]
     );
     await db.query(
       `INSERT INTO allocations (employee_id, type_id, allocated, valid_from, valid_to, status)
-       VALUES ($1, $2, 10, '2025-01-01', '2027-12-31', 'approved')`,
+       VALUES ($1, $2, 10, '2026-01-01', '2026-12-31', 'approved')`,
       [emp.id, sickLeaveId]
     );
   }
   console.log('  ✓ Time off types + allocations created');
 
   // ─────────── Time Off Requests (mix of statuses) ───────────
+  // Approved August 2026 leave — Priya
   await db.query(
     `INSERT INTO time_off_requests (employee_id, type_id, start_date, end_date, duration, status)
-     VALUES ($1, $2, '2025-08-10', '2025-08-12', 3, 'approved')`,
+     VALUES ($1, $2, '2026-08-10', '2026-08-12', 3, 'approved')`,
     [empIds[0].id, annualLeaveId]
   );
   await db.query(
@@ -203,15 +204,24 @@ async function seed() {
     [empIds[0].id, annualLeaveId]
   );
 
+  // Pending (draft) September 2026 sick leave — Ananya (demo: approve this live)
   await db.query(
     `INSERT INTO time_off_requests (employee_id, type_id, start_date, end_date, duration, status)
-     VALUES ($1, $2, '2025-09-01', '2025-09-01', 1, 'draft')`,
+     VALUES ($1, $2, '2026-09-08', '2026-09-08', 1, 'draft')`,
     [empIds[2].id, sickLeaveId]
   );
 
+  // Pending (draft) September 2026 annual leave — Siddharth (demo: approve/refuse live)
   await db.query(
     `INSERT INTO time_off_requests (employee_id, type_id, start_date, end_date, duration, status)
-     VALUES ($1, $2, '2025-08-20', '2025-08-22', 3, 'approved')`,
+     VALUES ($1, $2, '2026-09-15', '2026-09-17', 3, 'draft')`,
+    [empIds[11].id, annualLeaveId]
+  );
+
+  // Approved July 2026 leave — Deepika
+  await db.query(
+    `INSERT INTO time_off_requests (employee_id, type_id, start_date, end_date, duration, status)
+     VALUES ($1, $2, '2026-07-14', '2026-07-16', 3, 'approved')`,
     [empIds[4].id, annualLeaveId]
   );
   await db.query(
@@ -220,73 +230,83 @@ async function seed() {
   );
   console.log('  ✓ Time off requests created');
 
-  // ─────────── Paid Payrun (historical data for dashboard) ───────────
-  const { rows: payrunRows } = await db.query(
-    `INSERT INTO payruns (name, structure_id, period_start, period_end, status, created_by)
-     VALUES ('August 2025 Payrun', $1, '2025-08-01', '2025-08-31', 'paid', 1)
-     RETURNING id`,
+  // ─────────── Get rule IDs once (shared across all payrun inserts) ───────────
+  const { rows: ruleRows } = await db.query(
+    'SELECT id, code FROM salary_rules WHERE structure_id = $1',
     [structureId]
   );
-  const payrunId = payrunRows[0].id;
+  const ruleMap = {};
+  for (const r of ruleRows) ruleMap[r.code] = r.id;
 
-  // Get contracts for all employees
-  for (const emp of empIds) {
-    const { rows: contractRows } = await db.query(
-      `SELECT id, wage FROM contracts WHERE employee_id = $1 AND status = 'active' LIMIT 1`,
-      [emp.id]
+  /**
+   * Helper: insert a paid payrun with full payslip lines for all employees.
+   */
+  async function insertPaidPayrun(name, periodStart, periodEnd, workedDays, wageMultiplier = 1) {
+    const { rows: prRows } = await db.query(
+      `INSERT INTO payruns (name, structure_id, period_start, period_end, status, created_by)
+       VALUES ($1, $2, $3, $4, 'paid', 1) RETURNING id`,
+      [name, structureId, periodStart, periodEnd]
     );
-    if (contractRows.length === 0) continue;
-    const contract = contractRows[0];
-    const wage = Number(contract.wage);
+    const prId = prRows[0].id;
 
-    // Compute using the same rule logic
-    const basic = wage;
-    const hra = basic * 0.20;
-    const ta = 3000;
-    const pf = basic * 0.12;
-    const gross = basic + hra + ta;
-    const net = gross - pf;
-
-    const { rows: payslipRows } = await db.query(
-      `INSERT INTO payslips (payrun_id, employee_id, contract_id, worked_days, gross_total, net_total, status, has_warning, warning_reason)
-       VALUES ($1, $2, $3, 22, $4, $5, 'paid', $6, $7)
-       RETURNING id`,
-      [payrunId, emp.id, contract.id, Math.round(gross * 100) / 100, Math.round(net * 100) / 100,
-       emp.wage === 35000 && !employees.find(e => e.wage === emp.wage)?.bank, // Rohan has no bank
-       contract.wage == 35000 ? 'Missing bank account information' : null]
-    );
-    const payslipId = payslipRows[0].id;
-
-    // Insert payslip lines
-    const lines = [
-      { code: 'BASIC', label: 'Basic Salary', category: 'basic', seq: 1, value: basic },
-      { code: 'HRA', label: 'House Rent Allowance', category: 'allowance', seq: 2, value: hra },
-      { code: 'TA', label: 'Transport Allowance', category: 'allowance', seq: 3, value: ta },
-      { code: 'PF', label: 'Provident Fund', category: 'deduction', seq: 4, value: pf },
-      { code: 'NET', label: 'Net Salary', category: 'net', seq: 5, value: net },
-    ];
-
-    // Get rule IDs
-    const { rows: ruleRows } = await db.query(
-      'SELECT id, code FROM salary_rules WHERE structure_id = $1',
-      [structureId]
-    );
-    const ruleMap = {};
-    for (const r of ruleRows) ruleMap[r.code] = r.id;
-
-    for (const line of lines) {
-      await db.query(
-        `INSERT INTO payslip_lines (payslip_id, rule_id, label, category, sequence, value)
-         VALUES ($1, $2, $3, $4, $5, $6)`,
-        [payslipId, ruleMap[line.code], line.label, line.category, line.seq, Math.round(line.value * 100) / 100]
+    for (const emp of empIds) {
+      const { rows: contractRows } = await db.query(
+        `SELECT id, wage FROM contracts WHERE employee_id = $1 AND status = 'active' LIMIT 1`,
+        [emp.id]
       );
+      if (contractRows.length === 0) continue;
+      const contract = contractRows[0];
+      const wage = Number(contract.wage) * wageMultiplier;
+
+      const basic = wage;
+      const hra = basic * 0.20;
+      const ta = 3000;
+      const pf = basic * 0.12;
+      const gross = basic + hra + ta;
+      const net = gross - pf;
+
+      const hasWarning = contract.wage == 35000; // Rohan — no bank account
+      const { rows: psRows } = await db.query(
+        `INSERT INTO payslips (payrun_id, employee_id, contract_id, worked_days, gross_total, net_total, status, has_warning, warning_reason)
+         VALUES ($1, $2, $3, $4, $5, $6, 'paid', $7, $8) RETURNING id`,
+        [prId, emp.id, contract.id, workedDays,
+          Math.round(gross * 100) / 100, Math.round(net * 100) / 100,
+          hasWarning, hasWarning ? 'Missing bank account information' : null]
+      );
+      const psId = psRows[0].id;
+
+      const lines = [
+        { code: 'BASIC', label: 'Basic Salary', category: 'basic', seq: 1, value: basic },
+        { code: 'HRA', label: 'House Rent Allowance', category: 'allowance', seq: 2, value: hra },
+        { code: 'TA', label: 'Transport Allowance', category: 'allowance', seq: 3, value: ta },
+        { code: 'PF', label: 'Provident Fund', category: 'deduction', seq: 4, value: pf },
+        { code: 'NET', label: 'Net Salary', category: 'net', seq: 5, value: net },
+      ];
+      for (const line of lines) {
+        await db.query(
+          `INSERT INTO payslip_lines (payslip_id, rule_id, label, category, sequence, value)
+           VALUES ($1, $2, $3, $4, $5, $6)`,
+          [psId, ruleMap[line.code], line.label, line.category, line.seq, Math.round(line.value * 100) / 100]
+        );
+      }
     }
+    return prId;
   }
-  console.log(`  ✓ Paid payrun (August 2025) with ${empIds.length} payslips created`);
+
+  // ─────────── Paid Payruns (historical trend data for dashboard) ───────────
+  await insertPaidPayrun('July 2026 Payrun', '2026-07-01', '2026-07-31', 23);
+  console.log(`  ✓ Paid payrun (July 2026) with ${empIds.length} payslips created`);
+
+  await insertPaidPayrun('August 2026 Payrun', '2026-08-01', '2026-08-31', 22);
+  console.log(`  ✓ Paid payrun (August 2026) with ${empIds.length} payslips created`);
 
   console.log('\nSeed complete! Login credentials:');
   console.log('  Admin:      admin@peoplepay360.com / admin123');
   console.log('  HR Manager: arjun.mehta@company.com / hrmanager123');
+  console.log('\nDemo data highlights (2026 timeline):');
+  console.log('  • 2 paid payruns: July 2026 + August 2026 (salary trend chart has real data)');
+  console.log('  • 2 pending leave requests: Ananya (sick, Sep 8) + Siddharth (annual, Sep 15-17)');
+  console.log('  • Rohan Desai has no bank account → payslip warning surfaced in dashboard');
 }
 
 seed()

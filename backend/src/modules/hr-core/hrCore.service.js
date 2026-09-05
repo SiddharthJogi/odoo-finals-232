@@ -36,13 +36,11 @@ async function createUser(data) {
   const role = await repo.findRoleById(data.role_id);
   if (!role) throw new ValidationError('Invalid role_id');
 
-  if (data.employee_id) {
-    const employee = await repo.findEmployeeById(data.employee_id);
-    if (!employee) throw new ValidationError('Employee not found');
+  const employee = await repo.findEmployeeById(data.employee_id);
+  if (!employee) throw new ValidationError('Employee not found');
 
-    const linkedUser = await repo.findUserByEmployeeId(data.employee_id);
-    if (linkedUser) throw new ValidationError('Employee already has a user account');
-  }
+  const linkedUser = await repo.findUserByEmployeeId(data.employee_id);
+  if (linkedUser) throw new ValidationError('Employee already has a user account');
 
   const temporaryPassword = data.password || crypto.randomBytes(12).toString('base64url');
   const passwordHash = await bcrypt.hash(temporaryPassword, config.bcryptRounds);
@@ -90,6 +88,23 @@ async function updateUserRole(actorId, targetUserId, roleId) {
   return updated;
 }
 
+async function changePassword(userId, currentPassword, newPassword) {
+  const user = await repo.findUserPasswordById(userId);
+  if (!user || !user.is_active) {
+    throw new AuthenticationError('Account is unavailable');
+  }
+
+  const currentPasswordMatches = await bcrypt.compare(currentPassword, user.password_hash);
+  if (!currentPasswordMatches) {
+    throw new ValidationError('Current password is incorrect');
+  }
+
+  const passwordHash = await bcrypt.hash(newPassword, config.bcryptRounds);
+  const updated = await repo.updateUserPassword(userId, passwordHash);
+  if (!updated) throw new NotFoundError('User', userId);
+  return updated;
+}
+
 async function deactivateUser(actorId, targetUserId) {
   if (actorId === targetUserId) {
     throw new ForbiddenError('You cannot revoke your own account');
@@ -109,7 +124,7 @@ async function reactivateUser(actorId, targetUserId) {
   if (!existing) throw new NotFoundError('User', targetUserId);
   if (existing.is_active) throw new ValidationError('User account is already active');
 
-  const temporaryPassword = crypto.randomBytes(12).toString('base64url');
+  const temporaryPassword = data.password || crypto.randomBytes(12).toString('base64url');
   const passwordHash = await bcrypt.hash(temporaryPassword, config.bcryptRounds);
   const user = await repo.reactivateUser(targetUserId, passwordHash);
 
@@ -193,7 +208,7 @@ async function provisionEmployee(actor, data) {
   const existingUser = await repo.findUserByEmail(data.email);
   if (existingUser) throw new ValidationError('Email already has a user account');
 
-  const temporaryPassword = crypto.randomBytes(12).toString('base64url');
+  const temporaryPassword = data.password || crypto.randomBytes(12).toString('base64url');
   const passwordHash = await bcrypt.hash(temporaryPassword, config.bcryptRounds);
   const client = await db.getClient();
   let created;
@@ -248,6 +263,12 @@ async function listAllContracts() {
   return repo.findAllContracts();
 }
 
+async function getContract(id) {
+  const contract = await repo.findContractById(id);
+  if (!contract) throw new NotFoundError('Contract', id);
+  return contract;
+}
+
 async function listContractsByEmployee(employeeId) {
   return repo.findContractsByEmployee(employeeId);
 }
@@ -266,6 +287,9 @@ async function getApplicableContract(employeeId, periodStart, periodEnd) {
 }
 
 async function createContract(data) {
+  if (data.end_date && data.end_date < data.start_date) {
+    throw new ValidationError('Contract end date must be on or after the start date');
+  }
   const overlaps = await repo.findOverlappingActiveContracts(
     data.employee_id,
     data.start_date,
@@ -275,6 +299,39 @@ async function createContract(data) {
     throw new ValidationError('An active contract already exists for this employee in the given date range');
   }
   return repo.insertContract(data);
+}
+
+async function updateContract(id, data) {
+  const existing = await getContract(id);
+  const next = { ...existing, ...data };
+
+  if (next.end_date && next.end_date < next.start_date) {
+    throw new ValidationError('Contract end date must be on or after the start date');
+  }
+
+  if (next.status === 'active') {
+    const overlaps = await repo.findOverlappingActiveContracts(
+      next.employee_id,
+      next.start_date,
+      next.end_date,
+      id
+    );
+    if (overlaps.length > 0) {
+      throw new ValidationError('An active contract already exists for this employee in the given date range');
+    }
+  }
+
+  const updateData = { ...data };
+  if (Object.prototype.hasOwnProperty.call(updateData, 'end_date') && !updateData.end_date) {
+    updateData.end_date = null;
+  }
+  return repo.updateContract(id, updateData);
+}
+
+async function updateContractStatus(id, status) {
+  if (status === 'active') return updateContract(id, { status });
+  await getContract(id);
+  return repo.updateContract(id, { status });
 }
 
 // ───────────── Working Schedules ─────────────
@@ -320,6 +377,18 @@ async function createSchedule(data) {
   return { ...schedule, lines };
 }
 
+async function updateSchedule(id, data) {
+  const schedule = await repo.updateSchedule(id, data);
+  if (!schedule) throw new NotFoundError('Schedule', id);
+  return getScheduleWithLines(id);
+}
+
+async function archiveSchedule(id) {
+  const schedule = await repo.archiveSchedule(id);
+  if (!schedule) throw new NotFoundError('Active schedule', id);
+  return schedule;
+}
+
 /**
  * Parses a TIME string (HH:MM or HH:MM:SS) into seconds since midnight.
  */
@@ -332,6 +401,7 @@ module.exports = {
   login,
   createUser,
   updateUserRole,
+  changePassword,
   deactivateUser,
   reactivateUser,
   getUserProfile,
@@ -345,10 +415,15 @@ module.exports = {
   provisionEmployee,
   updateEmployee,
   listAllContracts,
+  getContract,
   listContractsByEmployee,
   getApplicableContract,
   createContract,
+  updateContract,
+  updateContractStatus,
   listSchedules,
   getScheduleWithLines,
   createSchedule,
+  updateSchedule,
+  archiveSchedule,
 };

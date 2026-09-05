@@ -9,6 +9,7 @@ const router = Router();
 router.get('/structures', authenticate, requireRole('admin', 'hr_payroll_manager', 'hr_payroll_user', 'hr_manager'), ctrl.listStructures);
 router.get('/structures/:id', authenticate, requireRole('admin', 'hr_payroll_manager', 'hr_payroll_user', 'hr_manager'), ctrl.getStructure);
 router.post('/structures', authenticate, requireRole('admin', 'hr_payroll_manager'), ctrl.createStructure);
+router.put('/structures/:id', authenticate, requireRole('admin', 'hr_payroll_manager'), ctrl.updateStructure);
 
 // ───────────── Rules ─────────────
 router.get('/rules', authenticate, requireRole('admin', 'hr_payroll_manager', 'hr_payroll_user', 'hr_manager'), ctrl.listRules);
@@ -29,6 +30,7 @@ router.post('/payruns/:id/send-payslips', authenticate, requireRole('admin', 'hr
 
 // ───────────── Payslips ─────────────
 router.get('/payslips/:id', authenticate, ctrl.getPayslip);
+router.get('/payslips/:id/explanation', authenticate, ctrl.explainPayslip);
 router.get('/payslips/:id/pdf', authenticate, ctrl.getPayslipPdf);
 
 module.exports = router;

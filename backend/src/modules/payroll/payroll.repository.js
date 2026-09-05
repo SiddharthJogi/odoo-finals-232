@@ -19,6 +19,23 @@ async function insertStructure({ name, status }) {
   return rows[0];
 }
 
+async function updateStructure(id, { name, status }) {
+  const fields = [];
+  const values = [];
+  let paramIdx = 1;
+  if (name !== undefined) { fields.push(`name = $${paramIdx++}`); values.push(name); }
+  if (status !== undefined) { fields.push(`status = $${paramIdx++}`); values.push(status); }
+
+  if (fields.length === 0) return findStructureById(id);
+
+  values.push(id);
+  const { rows } = await db.query(
+    `UPDATE salary_structures SET ${fields.join(', ')} WHERE id = $${paramIdx} RETURNING *`,
+    values
+  );
+  return rows[0];
+}
+
 // ───────────── Salary Rules ─────────────
 async function findRulesByStructure(structureId) {
   const { rows } = await db.query(
@@ -102,7 +119,7 @@ async function updatePayrunStatus(id, status, client) {
 // ───────────── Payslips ─────────────
 async function findPayslipsByPayrun(payrunId) {
   const { rows } = await db.query(
-    `SELECT p.*, e.name AS employee_name
+    `SELECT p.*, e.name AS employee_name, e.email AS employee_email
      FROM payslips p JOIN employees e ON p.employee_id = e.id
      WHERE p.payrun_id = $1
      ORDER BY e.name`,
@@ -113,7 +130,7 @@ async function findPayslipsByPayrun(payrunId) {
 
 async function findPayslipById(id) {
   const { rows } = await db.query(
-    `SELECT p.*, e.name AS employee_name
+    `SELECT p.*, e.name AS employee_name, e.email AS employee_email
      FROM payslips p JOIN employees e ON p.employee_id = e.id
      WHERE p.id = $1`,
     [id]
@@ -264,6 +281,7 @@ module.exports = {
   findAllStructures,
   findStructureById,
   insertStructure,
+  updateStructure,
   findRulesByStructure,
   findRuleById,
   insertRule,

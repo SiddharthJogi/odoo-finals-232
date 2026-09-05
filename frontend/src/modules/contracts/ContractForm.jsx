@@ -1,9 +1,11 @@
 import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 import client from '../../api/client';
 
 export default function ContractForm() {
   const navigate = useNavigate();
+  const { id } = useParams();
+  const isEditing = Boolean(id);
   const [form, setForm] = useState({
     employee_id: '', department_id: '', job_position: '', wage: '',
     start_date: '', end_date: '', structure_id: '', schedule_id: '', status: 'active'
@@ -16,16 +18,33 @@ export default function ContractForm() {
   const [error, setError] = useState('');
 
   useEffect(() => {
-    Promise.all([
+    const requests = [
       client.get('/employees').catch(() => ({ data: [] })),
       client.get('/payroll/structures').catch(() => ({ data: [] })),
       client.get('/schedules').catch(() => ({ data: [] }))
-    ]).then(([empRes, structRes, schedRes]) => {
+    ];
+    if (isEditing) requests.push(client.get(`/contracts/${id}`));
+
+    Promise.all(requests).then(([empRes, structRes, schedRes, contractRes]) => {
       setEmployees(empRes.data);
       setStructures(structRes.data);
       setSchedules(schedRes.data);
-    });
-  }, []);
+      if (contractRes) {
+        const contract = contractRes.data;
+        setForm({
+          employee_id: String(contract.employee_id),
+          department_id: contract.department_id ? String(contract.department_id) : '',
+          job_position: contract.job_position || '',
+          wage: String(contract.wage),
+          start_date: String(contract.start_date).slice(0, 10),
+          end_date: contract.end_date ? String(contract.end_date).slice(0, 10) : '',
+          structure_id: String(contract.structure_id),
+          schedule_id: contract.schedule_id ? String(contract.schedule_id) : '',
+          status: contract.status,
+        });
+      }
+    }).catch((err) => setError(err.response?.data?.error || 'Failed to load contract'));
+  }, [id, isEditing]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -42,7 +61,11 @@ export default function ContractForm() {
         end_date: form.end_date || undefined
       };
       
-      await client.post('/contracts', payload);
+      if (isEditing) {
+        await client.put(`/contracts/${id}`, payload);
+      } else {
+        await client.post('/contracts', payload);
+      }
       navigate('/contracts');
     } catch (err) {
       setError(err.response?.data?.error || 'Failed to save contract');
@@ -55,7 +78,7 @@ export default function ContractForm() {
 
   return (
     <div className="max-w-2xl mx-auto">
-      <h1 className="text-2xl font-bold text-gray-900 mb-6">New Contract</h1>
+      <h1 className="text-2xl font-bold text-gray-900 mb-6">{isEditing ? 'Edit Contract' : 'New Contract'}</h1>
 
       {error && <div className="bg-red-50 text-red-700 rounded-lg px-4 py-3 mb-4 text-sm">{error}</div>}
 
@@ -98,6 +121,7 @@ export default function ContractForm() {
               <option value="active">Active</option>
               <option value="expired">Expired</option>
               <option value="cancelled">Cancelled</option>
+              <option value="archived">Archived</option>
             </select>
           </div>
           
@@ -114,7 +138,7 @@ export default function ContractForm() {
         <div className="flex justify-end gap-3 pt-4">
           <button type="button" onClick={() => navigate('/contracts')} className="px-4 py-2 text-sm text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition">Cancel</button>
           <button type="submit" disabled={loading} className="px-4 py-2 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 transition">
-            {loading ? 'Saving...' : 'Create Contract'}
+            {loading ? 'Saving...' : isEditing ? 'Save Changes' : 'Create Contract'}
           </button>
         </div>
       </form>

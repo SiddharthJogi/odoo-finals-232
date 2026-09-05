@@ -16,9 +16,9 @@ import {
 
 const CONTRACT_STATUS_STYLES = {
   active: 'bg-emerald-50 text-emerald-800 border-emerald-300',
-  pending: 'bg-amber-50 text-amber-800 border-amber-300',
   expired: 'bg-gray-50 text-gray-600 border-gray-300',
   cancelled: 'bg-red-50 text-red-800 border-red-300',
+  archived: 'bg-slate-50 text-slate-600 border-slate-300',
 };
 
 export default function ContractHistory() {
@@ -34,8 +34,8 @@ export default function ContractHistory() {
   const [submitting, setSubmitting] = useState(false);
   const [form, setForm] = useState({
     wage: '',
-    date_start: '',
-    date_end: '',
+    start_date: '',
+    end_date: '',
     structure_id: '',
     status: 'active',
   });
@@ -70,15 +70,15 @@ export default function ContractHistory() {
       const { data } = await client.post('/contracts', {
         employee_id: parseInt(employeeId, 10),
         wage: parseFloat(form.wage),
-        date_start: form.date_start,
-        date_end: form.date_end || null,
+        start_date: form.start_date,
+        end_date: form.end_date || null,
         structure_id: parseInt(form.structure_id, 10),
         status: form.status,
       });
       setContracts((prev) => [data, ...prev]);
       setShowForm(false);
       addToast('Contract created successfully', 'success');
-      setForm({ wage: '', date_start: '', date_end: '', structure_id: structures[0]?.id || '', status: 'active' });
+      setForm({ wage: '', start_date: '', end_date: '', structure_id: structures[0]?.id || '', status: 'active' });
     } catch (err) {
       addToast(err.response?.data?.error || 'Failed to create contract', 'error');
     } finally {
@@ -169,8 +169,8 @@ export default function ContractHistory() {
                   </div>
                   <p className="text-xs text-gray-500 flex items-center gap-1.5">
                     <Calendar className="w-3.5 h-3.5 text-gray-400" />
-                    {contract.date_start}
-                    {contract.date_end ? ` → ${contract.date_end}` : ' → Present'}
+                    {contract.start_date}
+                    {contract.end_date ? ` → ${contract.end_date}` : ' → Present'}
                   </p>
                   {contract.structure_name && (
                     <p className="text-[11px] text-gray-400 mt-1">
@@ -238,8 +238,8 @@ export default function ContractHistory() {
                   <input
                     type="date"
                     required
-                    value={form.date_start}
-                    onChange={(e) => setForm({ ...form, date_start: e.target.value })}
+                    value={form.start_date}
+                    onChange={(e) => setForm({ ...form, start_date: e.target.value })}
                     className="w-full text-sm bg-gray-50 border border-gray-300 rounded-lg px-3 py-2 text-gray-800 font-medium focus:ring-2 focus:ring-blue-500 focus:outline-none"
                   />
                 </div>
@@ -248,8 +248,8 @@ export default function ContractHistory() {
                   <label className="block text-xs font-bold text-gray-700 mb-1">End Date (Optional)</label>
                   <input
                     type="date"
-                    value={form.date_end}
-                    onChange={(e) => setForm({ ...form, date_end: e.target.value })}
+                    value={form.end_date}
+                    onChange={(e) => setForm({ ...form, end_date: e.target.value })}
                     className="w-full text-sm bg-gray-50 border border-gray-300 rounded-lg px-3 py-2 text-gray-800 font-medium focus:ring-2 focus:ring-blue-500 focus:outline-none"
                   />
                 </div>
@@ -275,7 +275,6 @@ export default function ContractHistory() {
                     className="w-full text-sm bg-gray-50 border border-gray-300 rounded-lg px-3 py-2 text-gray-800 font-medium focus:ring-2 focus:ring-blue-500 focus:outline-none"
                   >
                     <option value="active">Active</option>
-                    <option value="pending">Pending</option>
                     <option value="expired">Expired</option>
                   </select>
                 </div>

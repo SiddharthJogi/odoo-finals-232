@@ -53,6 +53,12 @@ async function createStructure(data) {
   return repo.insertStructure(data);
 }
 
+async function updateStructure(id, data) {
+  const structure = await getStructure(id);
+  if (!structure) throw new NotFoundError('Salary Structure', id);
+  return repo.updateStructure(id, data);
+}
+
 // ───────────── Salary Rules ─────────────
 async function listRulesByStructure(structureId) {
   return repo.findRulesByStructure(structureId);
@@ -215,7 +221,7 @@ function triggerAsyncAnomalyScan(payrunId) {
         'Content-Length': Buffer.byteLength(postData),
       },
     }, (res) => {
-      res.on('data', () => {});
+      res.on('data', () => { });
     });
     req.on('error', (err) => {
       console.warn('AI Anomaly Scan trigger failed silently:', err.message);
@@ -304,6 +310,33 @@ async function getPayslipWithLines(id) {
   return { ...payslip, lines };
 }
 
+async function explainPayslip(id) {
+  const payslip = await getPayslipWithLines(id);
+  const earnings = payslip.lines.filter((line) => line.category !== 'deduction');
+  const deductions = payslip.lines.filter((line) => line.category === 'deduction');
+  const grossTotal = Number(payslip.gross_total);
+  const netTotal = Number(payslip.net_total);
+  const deductionTotal = Math.round((grossTotal - netTotal) * 100) / 100;
+
+  return {
+    payslip_id: payslip.id,
+    employee_name: payslip.employee_name,
+    worked_days: payslip.worked_days,
+    earnings_count: earnings.length,
+    deductions_count: deductions.length,
+    gross_total: grossTotal,
+    deduction_total: deductionTotal,
+    net_total: netTotal,
+    compliance: {
+      has_warning: Boolean(payslip.has_warning),
+      warning_reason: payslip.warning_reason || null,
+      message: payslip.has_warning
+        ? `Action needed: ${payslip.warning_reason}`
+        : 'No compliance warnings were found for this payslip.',
+    },
+  };
+}
+
 async function listPayslipsByPayrun(payrunId) {
   return repo.findPayslipsByPayrun(payrunId);
 }
@@ -327,16 +360,39 @@ async function sendPayslips(payrunId, userId) {
     throw new ValidationError('No payslips found for this payrun');
   }
 
+  const mailer = require('../hr-core/mailer');
+  const { generatePayslipPdfBuffer } = require('./pdfGenerator');
+  let successCount = 0;
+
+  for (const p of payslips) {
+    try {
+      if (!p.employee_email) continue;
+      
+      const fullPayslip = await getPayslipWithLines(p.id);
+      const pdfBuffer = await generatePayslipPdfBuffer(fullPayslip);
+      
+      await mailer.sendPayslipEmail({
+        email: p.employee_email,
+        name: p.employee_name || 'Employee',
+        payrunName: payrun.name,
+        pdfBuffer,
+      });
+      successCount++;
+    } catch (error) {
+      console.error(`Failed to send payslip ${p.id} to ${p.employee_email}:`, error);
+    }
+  }
+
   await db.query(
     `INSERT INTO audit_logs (user_id, action, entity, entity_id, note)
      VALUES ($1, $2, $3, $4, $5)`,
-    [userId || null, 'send_payslips', 'payrun', payrunId, `Dispatched ${payslips.length} payslips via email service for payrun #${payrunId} (${payrun.name})`]
+    [userId || null, 'send_payslips', 'payrun', payrunId, `Dispatched ${successCount} payslips via email service for payrun #${payrunId} (${payrun.name})`]
   );
 
   return {
     success: true,
-    count: payslips.length,
-    message: `Dispatched ${payslips.length} payslips via email to registered employees.`,
+    count: successCount,
+    message: `Dispatched ${successCount} payslips via email to registered employees.`,
   };
 }
 
@@ -344,6 +400,7 @@ module.exports = {
   listStructures,
   getStructure,
   createStructure,
+  updateStructure,
   listRulesByStructure,
   createRule,
   updateRule,
@@ -352,6 +409,7 @@ module.exports = {
   createPayrun,
   transitionPayrun,
   getPayslipWithLines,
+  explainPayslip,
   listPayslipsByPayrun,
   listPayruns,
   getPayrun,

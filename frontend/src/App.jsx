@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { Routes, Route, Navigate, Link, useLocation, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from './auth/AuthContext';
+import client from './api/client';
 import LoginPage from './auth/LoginPage';
 import { cn } from './lib/utils';
 
@@ -16,6 +17,7 @@ import ScheduleList from './modules/schedules/ScheduleList';
 import ScheduleForm from './modules/schedules/ScheduleForm';
 import UserManagement from './modules/users/UserManagement';
 import logo from '../assets/logo.png';
+import ChangePassword from './auth/ChangePassword';
 
 // Module pages — Dev 2
 import AttendanceList from './modules/attendance/AttendanceList';
@@ -45,6 +47,7 @@ import {
   X,
   LogOut,
   UserCircle,
+  KeyRound,
   Sparkles,
   FileText,
   Calendar,
@@ -134,6 +137,19 @@ const ROLE_BADGE = {
   hr_payroll_manager: 'bg-amber-900/40 text-amber-300 border-amber-700/50',
   hr_payroll_user: 'bg-sky-900/40 text-sky-300 border-sky-700/50',
   employee: 'bg-emerald-900/40 text-emerald-300 border-emerald-700/50',
+};
+
+const ROLES = {
+  admin: ['admin'],
+  hr: ['admin', 'hr_manager'],
+  hrAndPayroll: ['admin', 'hr_manager', 'hr_payroll_manager', 'hr_payroll_user'],
+  payroll: ['admin', 'hr_manager', 'hr_payroll_manager', 'hr_payroll_user'],
+  all: ['admin', 'hr_manager', 'hr_payroll_manager', 'hr_payroll_user', 'employee'],
+};
+
+const SAFE_REDIRECTS = {
+  employee: '/attendance/check-in',
+  default: '/dashboard',
 };
 
 function DropdownMenu({ item, isActive }) {
@@ -240,7 +256,7 @@ function NavBar() {
 
   return (
     <nav className="w-full bg-background/80 backdrop-blur-lg border-b border-border shadow-sm sticky top-0 z-40">
-      <div className="w-full px-0">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex justify-between items-center h-[64px]">
           {/* Logo */}
           <Link to="/" className="flex items-center gap-1 shrink-0 group">
@@ -255,7 +271,7 @@ function NavBar() {
           </Link>
 
           {/* Desktop Nav */}
-          <div className="hidden md:flex items-center gap-1 flex-1 ml-8">
+          <div className="hidden md:flex items-center gap-4 flex-1 ml-8">
             {visibleItems.map((item) => {
               const isActive = location.pathname.startsWith(item.path);
               return <DropdownMenu key={item.path} item={item} isActive={isActive} />;
@@ -294,6 +310,13 @@ function NavBar() {
                         {role?.replace(/_/g, ' ')}
                       </div>
                     </div>
+                    <button
+                      onClick={() => { setUserMenuOpen(false); navigate('/change-password'); }}
+                      className="w-full flex items-center gap-2 px-4 py-3 text-sm text-foreground hover:bg-muted transition text-left font-medium border-b border-border"
+                    >
+                      <KeyRound className="w-4 h-4 text-muted-foreground" />
+                      Change Password
+                    </button>
                     <button
                       onClick={handleLogout}
                       className="w-full flex items-center gap-2 px-4 py-3 text-sm text-destructive hover:bg-destructive/10 transition text-left font-medium"
@@ -347,6 +370,13 @@ function NavBar() {
           })}
           <div className="border-t border-slate-700 pt-3 mt-3">
             <button
+              onClick={() => { setMobileOpen(false); navigate('/change-password'); }}
+              className="w-full flex items-center gap-2 px-3 py-2 text-sm text-slate-300 hover:text-white hover:bg-white/5 rounded-lg transition text-left"
+            >
+              <KeyRound className="w-4 h-4" />
+              Change Password
+            </button>
+            <button
               onClick={handleLogout}
               className="w-full flex items-center gap-2 px-3 py-2 text-sm text-red-400 hover:bg-red-900/20 rounded-lg transition"
             >
@@ -356,6 +386,7 @@ function NavBar() {
           </div>
         </div>
       )}
+
     </nav>
   );
 }
@@ -363,6 +394,17 @@ function NavBar() {
 function ProtectedRoute({ children }) {
   const { isAuthenticated } = useAuth();
   if (!isAuthenticated) return <Navigate to="/login" replace />;
+  return children;
+}
+
+function RoleRoute({ roles, children }) {
+  const { isAuthenticated, role } = useAuth();
+
+  if (!isAuthenticated) return <Navigate to="/login" replace />;
+  if (!roles.includes(role)) {
+    return <Navigate to={SAFE_REDIRECTS[role] || SAFE_REDIRECTS.default} replace />;
+  }
+
   return children;
 }
 
@@ -391,38 +433,40 @@ export default function App() {
         <AnimatePresence mode="wait">
           <Routes location={location} key={location.pathname}>
             <Route path="/login" element={<AnimatedRoute><LoginPage /></AnimatedRoute>} />
+            <Route path="/change-password" element={<ProtectedRoute><AnimatedRoute><ChangePassword /></AnimatedRoute></ProtectedRoute>} />
 
             {/* Dev 1: Employees, Contracts, Schedules */}
             <Route path="/" element={<ProtectedRoute><AnimatedRoute><Navigate to="/employees" replace /></AnimatedRoute></ProtectedRoute>} />
-            <Route path="/employees" element={<ProtectedRoute><AnimatedRoute><EmployeeList /></AnimatedRoute></ProtectedRoute>} />
-            <Route path="/employees/new" element={<ProtectedRoute><AnimatedRoute><EmployeeForm /></AnimatedRoute></ProtectedRoute>} />
-            <Route path="/employees/kanban" element={<ProtectedRoute><AnimatedRoute><EmployeeKanban /></AnimatedRoute></ProtectedRoute>} />
-            <Route path="/employees/:id" element={<ProtectedRoute><AnimatedRoute><EmployeeForm /></AnimatedRoute></ProtectedRoute>} />
-            <Route path="/employees/:id/contracts" element={<ProtectedRoute><AnimatedRoute><ContractHistory /></AnimatedRoute></ProtectedRoute>} />
+            <Route path="/employees" element={<RoleRoute roles={ROLES.hr}><AnimatedRoute><EmployeeList /></AnimatedRoute></RoleRoute>} />
+            <Route path="/employees/new" element={<RoleRoute roles={ROLES.hr}><AnimatedRoute><EmployeeForm /></AnimatedRoute></RoleRoute>} />
+            <Route path="/employees/kanban" element={<RoleRoute roles={ROLES.hr}><AnimatedRoute><EmployeeKanban /></AnimatedRoute></RoleRoute>} />
+            <Route path="/employees/:id" element={<RoleRoute roles={ROLES.hr}><AnimatedRoute><EmployeeForm /></AnimatedRoute></RoleRoute>} />
+            <Route path="/employees/:id/contracts" element={<RoleRoute roles={ROLES.hr}><AnimatedRoute><ContractHistory /></AnimatedRoute></RoleRoute>} />
 
-            <Route path="/contracts" element={<ProtectedRoute><AnimatedRoute><ContractList /></AnimatedRoute></ProtectedRoute>} />
-            <Route path="/contracts/new" element={<ProtectedRoute><AnimatedRoute><ContractForm /></AnimatedRoute></ProtectedRoute>} />
+            <Route path="/contracts" element={<RoleRoute roles={ROLES.hrAndPayroll}><AnimatedRoute><ContractList /></AnimatedRoute></RoleRoute>} />
+            <Route path="/contracts/new" element={<RoleRoute roles={ROLES.hr}><AnimatedRoute><ContractForm /></AnimatedRoute></RoleRoute>} />
+            <Route path="/contracts/:id" element={<RoleRoute roles={ROLES.hr}><AnimatedRoute><ContractForm /></AnimatedRoute></RoleRoute>} />
 
-            <Route path="/schedules" element={<ProtectedRoute><AnimatedRoute><ScheduleList /></AnimatedRoute></ProtectedRoute>} />
-            <Route path="/schedules/new" element={<ProtectedRoute><AnimatedRoute><ScheduleForm /></AnimatedRoute></ProtectedRoute>} />
-            <Route path="/schedules/:id" element={<ProtectedRoute><AnimatedRoute><ScheduleForm /></AnimatedRoute></ProtectedRoute>} />
-            <Route path="/users" element={<ProtectedRoute><AnimatedRoute><UserManagement /></AnimatedRoute></ProtectedRoute>} />
+            <Route path="/schedules" element={<RoleRoute roles={ROLES.hrAndPayroll}><AnimatedRoute><ScheduleList /></AnimatedRoute></RoleRoute>} />
+            <Route path="/schedules/new" element={<RoleRoute roles={ROLES.hr}><AnimatedRoute><ScheduleForm /></AnimatedRoute></RoleRoute>} />
+            <Route path="/schedules/:id" element={<RoleRoute roles={ROLES.hrAndPayroll}><AnimatedRoute><ScheduleForm /></AnimatedRoute></RoleRoute>} />
+            <Route path="/users" element={<RoleRoute roles={ROLES.admin}><AnimatedRoute><UserManagement /></AnimatedRoute></RoleRoute>} />
 
             {/* Dev 2: Attendance & Time Off */}
-            <Route path="/attendance" element={<ProtectedRoute><AnimatedRoute><AttendanceList /></AnimatedRoute></ProtectedRoute>} />
-            <Route path="/attendance/check-in" element={<ProtectedRoute><AnimatedRoute><CheckInWidget /></AnimatedRoute></ProtectedRoute>} />
-            <Route path="/time-off" element={<ProtectedRoute><AnimatedRoute><Requests /></AnimatedRoute></ProtectedRoute>} />
-            <Route path="/time-off/allocations" element={<ProtectedRoute><AnimatedRoute><Allocations /></AnimatedRoute></ProtectedRoute>} />
-            <Route path="/time-off/types" element={<ProtectedRoute><AnimatedRoute><Types /></AnimatedRoute></ProtectedRoute>} />
+            <Route path="/attendance" element={<RoleRoute roles={ROLES.all}><AnimatedRoute><AttendanceList /></AnimatedRoute></RoleRoute>} />
+            <Route path="/attendance/check-in" element={<RoleRoute roles={ROLES.all}><AnimatedRoute><CheckInWidget /></AnimatedRoute></RoleRoute>} />
+            <Route path="/time-off" element={<RoleRoute roles={ROLES.all}><AnimatedRoute><Requests /></AnimatedRoute></RoleRoute>} />
+            <Route path="/time-off/allocations" element={<RoleRoute roles={ROLES.all}><AnimatedRoute><Allocations /></AnimatedRoute></RoleRoute>} />
+            <Route path="/time-off/types" element={<RoleRoute roles={ROLES.hr}><AnimatedRoute><Types /></AnimatedRoute></RoleRoute>} />
 
             {/* Dev 3: Payroll */}
-            <Route path="/payroll" element={<ProtectedRoute><AnimatedRoute><PayrunWizard /></AnimatedRoute></ProtectedRoute>} />
-            <Route path="/payroll/structures" element={<ProtectedRoute><AnimatedRoute><Structures /></AnimatedRoute></ProtectedRoute>} />
-            <Route path="/payroll/rules" element={<ProtectedRoute><AnimatedRoute><Rules /></AnimatedRoute></ProtectedRoute>} />
-            <Route path="/payroll/payslips/:id" element={<ProtectedRoute><AnimatedRoute><PayslipView /></AnimatedRoute></ProtectedRoute>} />
+            <Route path="/payroll" element={<RoleRoute roles={ROLES.payroll}><AnimatedRoute><PayrunWizard /></AnimatedRoute></RoleRoute>} />
+            <Route path="/payroll/structures" element={<RoleRoute roles={ROLES.payroll}><AnimatedRoute><Structures /></AnimatedRoute></RoleRoute>} />
+            <Route path="/payroll/rules" element={<RoleRoute roles={ROLES.payroll}><AnimatedRoute><Rules /></AnimatedRoute></RoleRoute>} />
+            <Route path="/payroll/payslips/:id" element={<RoleRoute roles={ROLES.payroll}><AnimatedRoute><PayslipView /></AnimatedRoute></RoleRoute>} />
 
             {/* Dev 4: Dashboard */}
-            <Route path="/dashboard" element={<ProtectedRoute><AnimatedRoute><Dashboard /></AnimatedRoute></ProtectedRoute>} />
+            <Route path="/dashboard" element={<RoleRoute roles={ROLES.hrAndPayroll}><AnimatedRoute><Dashboard /></AnimatedRoute></RoleRoute>} />
 
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>

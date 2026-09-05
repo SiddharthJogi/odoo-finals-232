@@ -1,13 +1,17 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import client from '../../api/client';
-import { FileText, ArrowLeft, Download, AlertTriangle, CheckCircle2, TrendingUp, TrendingDown } from 'lucide-react';
+import { FileText, ArrowLeft, Download, AlertTriangle, CheckCircle2, TrendingUp, TrendingDown, Sparkles } from 'lucide-react';
 
 export default function PayslipView() {
   const { id } = useParams();
   const navigate = useNavigate();
   const [payslip, setPayslip] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [showExplanation, setShowExplanation] = useState(false);
+  const [explanation, setExplanation] = useState(null);
+  const [explanationLoading, setExplanationLoading] = useState(false);
+  const [explanationError, setExplanationError] = useState('');
 
   useEffect(() => {
     client.get(`/payroll/payslips/${id}`)
@@ -15,6 +19,23 @@ export default function PayslipView() {
       .catch(console.error)
       .finally(() => setLoading(false));
   }, [id]);
+
+  const toggleExplanation = async () => {
+    const nextVisible = !showExplanation;
+    setShowExplanation(nextVisible);
+    if (!nextVisible || explanation) return;
+
+    setExplanationLoading(true);
+    setExplanationError('');
+    try {
+      const { data } = await client.get(`/payroll/payslips/${id}/explanation`);
+      setExplanation(data);
+    } catch (err) {
+      setExplanationError(err.response?.data?.error || 'Unable to load payslip explanation.');
+    } finally {
+      setExplanationLoading(false);
+    }
+  };
 
   if (loading) {
     return (
@@ -38,8 +59,6 @@ export default function PayslipView() {
         <p className="text-gray-500 font-semibold">Payslip not found</p>
         <button onClick={() => navigate('/payroll')} className="mt-4 text-blue-600 text-sm underline">
           Back to Payruns
-        </button>
-      </div>
     );
   }
 
@@ -64,15 +83,22 @@ export default function PayslipView() {
           </h1>
           <p className="text-xs text-gray-500 mt-1">{payslip.employee_name}</p>
         </div>
-        <a
-          href={`/api/payroll/payslips/${id}/pdf`}
-          target="_blank"
-          rel="noreferrer"
-          className="flex items-center gap-1.5 px-4 py-2 text-xs font-bold bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition shadow-md"
-        >
-          <Download className="w-4 h-4" />
-          Download PDF
-        </a>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={toggleExplanation}
+            className="flex items-center gap-1.5 px-4 py-2 text-xs font-bold bg-amber-500 text-white rounded-lg hover:bg-amber-600 transition shadow-md"
+          >
+            <Sparkles className="w-4 h-4" />
+            {showExplanation ? 'Hide Explanation' : 'Explain This'}
+          </button>
+          <button
+            onClick={handleDownloadPDF}
+            className="flex items-center gap-1.5 px-4 py-2 text-xs font-bold bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition shadow-md"
+          >
+            <Download className="w-4 h-4" />
+            Download PDF
+          </button>
+        </div>
       </div>
 
       <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
@@ -101,6 +127,46 @@ export default function PayslipView() {
         </div>
 
         <div className="p-6 space-y-6">
+          {showExplanation && (
+            <div className="bg-amber-50 border border-amber-200 rounded-xl p-5">
+              <div className="flex items-start gap-3">
+                <Sparkles className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
+                <div className="space-y-3 text-sm text-amber-950">
+                  {explanationLoading && <p className="text-xs text-amber-800">Preparing the explanation...</p>}
+                  {explanationError && <p className="text-xs text-red-700">{explanationError}</p>}
+                  {explanation && (
+                    <>
+                      <div>
+                        <p className="font-extrabold">How this payslip was calculated</p>
+                        <p className="text-xs text-amber-800 mt-1">
+                          {explanation.employee_name || 'This employee'} was paid for {explanation.worked_days || 0} worked days.
+                          The gross amount combines {explanation.earnings_count} earning {explanation.earnings_count === 1 ? 'component' : 'components'},
+                          {' '}then deductions of ₹{Number(explanation.deduction_total).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                          {' '}were subtracted to reach the net salary.
+                        </p>
+                      </div>
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-xs">
+                        <div className="bg-white/70 rounded-lg p-3 border border-amber-200">
+                          <p className="text-amber-700">Gross earnings</p>
+                          <p className="font-bold mt-1">₹{Number(explanation.gross_total).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</p>
+                        </div>
+                        <div className="bg-white/70 rounded-lg p-3 border border-amber-200">
+                          <p className="text-amber-700">Deductions</p>
+                          <p className="font-bold mt-1">₹{Number(explanation.deduction_total).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</p>
+                        </div>
+                        <div className="bg-white/70 rounded-lg p-3 border border-amber-200">
+                          <p className="text-amber-700">Net payable</p>
+                          <p className="font-bold mt-1">₹{Number(explanation.net_total).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</p>
+                        </div>
+                      </div>
+                      <p className="text-xs text-amber-800">{explanation.compliance.message}</p>
+                    </>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* Compliance Warning */}
           {payslip.has_warning && (
             <div className="flex items-start gap-3 bg-amber-50 border border-amber-200 rounded-xl p-4">

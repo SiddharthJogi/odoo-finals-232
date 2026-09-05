@@ -9,11 +9,16 @@ const createUserSchema = z.object({
   email: z.string().email(),
   password: z.string().min(8).optional(),
   role_id: z.number().int().positive(),
-  employee_id: z.number().int().positive().optional(),
+  employee_id: z.number().int().positive(),
 });
 
 const updateRoleSchema = z.object({
   role_id: z.number().int().positive(),
+});
+
+const changePasswordSchema = z.object({
+  current_password: z.string().min(1),
+  new_password: z.string().min(8),
 });
 
 const createEmployeeSchema = z.object({
@@ -30,6 +35,7 @@ const createEmployeeSchema = z.object({
 
 const provisionEmployeeSchema = createEmployeeSchema.extend({
   role_id: z.number().int().positive().optional(),
+  password: z.string().min(8).optional(),
 });
 
 const updateEmployeeSchema = createEmployeeSchema.partial();
@@ -43,7 +49,13 @@ const createContractSchema = z.object({
   end_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
   structure_id: z.number().int().positive(),
   schedule_id: z.number().int().positive().optional(),
-  status: z.enum(['active', 'expired', 'cancelled']).default('active'),
+  status: z.enum(['active', 'expired', 'cancelled', 'archived']).default('active'),
+});
+
+const updateContractSchema = createContractSchema.partial();
+
+const updateContractStatusSchema = z.object({
+  status: z.enum(['active', 'expired', 'cancelled', 'archived']),
 });
 
 const createScheduleSchema = z.object({
@@ -57,6 +69,10 @@ const createScheduleSchema = z.object({
   })).min(1),
 });
 
+const updateScheduleSchema = createScheduleSchema.partial().extend({
+  lines: createScheduleSchema.shape.lines.optional(),
+});
+
 const createDepartmentSchema = z.object({
   name: z.string().min(1).max(120),
   parent_id: z.number().int().positive().optional(),
@@ -66,10 +82,14 @@ module.exports = {
   loginSchema,
   createUserSchema,
   updateRoleSchema,
+  changePasswordSchema,
   createEmployeeSchema,
   provisionEmployeeSchema,
   updateEmployeeSchema,
   createContractSchema,
+  updateContractSchema,
+  updateContractStatusSchema,
   createScheduleSchema,
+  updateScheduleSchema,
   createDepartmentSchema,
 };

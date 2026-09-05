@@ -1,36 +1,171 @@
 import { useState, useEffect } from 'react';
 import client from '../../api/client';
+import { Plus, Edit2, X } from 'lucide-react';
 
 export default function Structures() {
   const [structures, setStructures] = useState([]);
   const [loading, setLoading] = useState(true);
+  
+  const [showModal, setShowModal] = useState(false);
+  const [editingStructure, setEditingStructure] = useState(null);
+  const [formData, setFormData] = useState({ name: '', status: 'active' });
+  const [error, setError] = useState('');
+  const [submitting, setSubmitting] = useState(false);
 
-  useEffect(() => {
+  const fetchStructures = () => {
+    setLoading(true);
     client.get('/payroll/structures')
       .then(({ data }) => setStructures(data))
       .catch(console.error)
       .finally(() => setLoading(false));
+  };
+
+  useEffect(() => {
+    fetchStructures();
   }, []);
 
-  if (loading) return <div className="text-center py-12 text-gray-500">Loading...</div>;
+  const openModal = (structure = null) => {
+    setError('');
+    if (structure) {
+      setEditingStructure(structure);
+      setFormData({ name: structure.name, status: structure.status });
+    } else {
+      setEditingStructure(null);
+      setFormData({ name: '', status: 'active' });
+    }
+    setShowModal(true);
+  };
+
+  const closeModal = () => {
+    setShowModal(false);
+    setEditingStructure(null);
+    setFormData({ name: '', status: 'active' });
+  };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setError('');
+    setSubmitting(true);
+
+    try {
+      if (editingStructure) {
+        await client.put(`/payroll/structures/${editingStructure.id}`, formData);
+      } else {
+        await client.post('/payroll/structures', formData);
+      }
+      fetchStructures();
+      closeModal();
+    } catch (err) {
+      setError(err.response?.data?.error || 'Failed to save structure');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  if (loading && structures.length === 0) return <div className="text-center py-12 text-gray-500">Loading...</div>;
 
   return (
     <div>
-      <h1 className="text-2xl font-bold text-gray-900 mb-6">Salary Structures</h1>
+      <div className="flex justify-between items-center mb-6">
+        <h1 className="text-2xl font-bold text-gray-900">Salary Structures</h1>
+        <button
+          onClick={() => openModal()}
+          className="flex items-center gap-1.5 px-4 py-2 bg-blue-600 text-white font-semibold rounded-lg hover:bg-blue-700 transition shadow-sm"
+        >
+          <Plus className="w-4 h-4" />
+          Add Structure
+        </button>
+      </div>
+
       <div className="grid gap-4">
         {structures.map((s) => (
-          <div key={s.id} className="bg-white rounded-xl shadow-sm border border-gray-200 p-5 flex justify-between items-center">
+          <div key={s.id} className="bg-white rounded-xl shadow-sm border border-gray-200 p-5 flex justify-between items-center group hover:border-blue-300 transition">
             <div>
               <h3 className="font-semibold text-gray-900">{s.name}</h3>
               <p className="text-sm text-gray-500">ID: {s.id}</p>
             </div>
-            <span className={`px-3 py-1 text-xs rounded-full ${s.status === 'active' ? 'bg-green-50 text-green-700' : 'bg-gray-100 text-gray-600'}`}>
-              {s.status}
-            </span>
+            <div className="flex items-center gap-4">
+              <span className={`px-3 py-1 text-xs rounded-full font-medium ${s.status === 'active' ? 'bg-green-50 text-green-700 border border-green-200' : 'bg-gray-100 text-gray-600 border border-gray-200'}`}>
+                {s.status}
+              </span>
+              <button
+                onClick={() => openModal(s)}
+                className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition opacity-0 group-hover:opacity-100"
+                title="Edit Structure"
+              >
+                <Edit2 className="w-4 h-4" />
+              </button>
+            </div>
           </div>
         ))}
-        {structures.length === 0 && <p className="text-center py-8 text-gray-400">No structures</p>}
+        {structures.length === 0 && <p className="text-center py-8 text-gray-400">No structures found.</p>}
       </div>
+
+      {showModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50 backdrop-blur-sm">
+          <div className="bg-white rounded-xl max-w-md w-full shadow-2xl overflow-hidden">
+            <div className="flex justify-between items-center p-5 border-b border-gray-100 bg-gray-50">
+              <h2 className="text-lg font-bold text-gray-900">
+                {editingStructure ? 'Edit Salary Structure' : 'Create Salary Structure'}
+              </h2>
+              <button onClick={closeModal} className="text-gray-400 hover:text-gray-600 transition">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSubmit} className="p-5">
+              {error && (
+                <div className="mb-4 p-3 bg-red-50 text-red-700 text-sm rounded-lg border border-red-200">
+                  {error}
+                </div>
+              )}
+              
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-1">Structure Name</label>
+                  <input
+                    type="text"
+                    required
+                    value={formData.name}
+                    onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition"
+                    placeholder="e.g. Standard Indian Salary"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-1">Status</label>
+                  <select
+                    value={formData.status}
+                    onChange={(e) => setFormData({ ...formData, status: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition bg-white"
+                  >
+                    <option value="active">Active</option>
+                    <option value="inactive">Inactive</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="mt-6 flex justify-end gap-3">
+                <button
+                  type="button"
+                  onClick={closeModal}
+                  className="px-4 py-2 text-sm font-semibold text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition"
+                  disabled={submitting}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={submitting}
+                  className="px-4 py-2 text-sm font-semibold text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition disabled:opacity-50"
+                >
+                  {submitting ? 'Saving...' : 'Save Structure'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

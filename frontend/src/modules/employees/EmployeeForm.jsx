@@ -11,17 +11,21 @@ export default function EmployeeForm() {
   const isEdit = !!id;
   const [form, setForm] = useState({
     name: '', email: '', department_id: '', manager_id: '', job_position: '',
-    employee_type: 'full_time', bank_account: '', status: 'active',
+    employee_type: 'full_time', bank_account: '', status: 'active', password: '',
   });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
   const [temporaryPassword, setTemporaryPassword] = useState('');
+  const [schedules, setSchedules] = useState([]);
 
   useEffect(() => {
     if (isEdit) {
-      client.get(`/employees/${id}`)
-        .then(({ data }) => setForm({
+      Promise.all([client.get(`/employees/${id}`), client.get('/schedules')])
+        .then(([employeeResponse, scheduleResponse]) => {
+          const data = employeeResponse.data;
+          setSchedules(scheduleResponse.data.filter((schedule) => schedule.status === 'active' || schedule.id === data.schedule_id));
+          setForm({
           name: data.name || '',
           email: data.email || '',
           department_id: data.department_id || '',
@@ -29,9 +33,20 @@ export default function EmployeeForm() {
           job_position: data.job_position || '',
           employee_type: data.employee_type || 'full_time',
           bank_account: data.bank_account || '',
+          schedule_id: data.schedule_id || '',
           status: data.status || 'active',
+<<<<<<< Updated upstream
+          });
+        })
+=======
+          password: '',
         }))
+>>>>>>> Stashed changes
         .catch(() => addToast('Failed to load employee data', 'error'));
+    } else {
+      client.get('/schedules')
+        .then(({ data }) => setSchedules(data.filter((schedule) => schedule.status === 'active')))
+        .catch(() => addToast('Failed to load schedules', 'error'));
     }
   }, [id, isEdit]);
 
@@ -44,7 +59,9 @@ export default function EmployeeForm() {
         ...form,
         department_id: form.department_id ? parseInt(form.department_id, 10) : undefined,
         manager_id: form.manager_id ? parseInt(form.manager_id, 10) : undefined,
+        schedule_id: form.schedule_id ? parseInt(form.schedule_id, 10) : undefined,
       };
+      if (isEdit || !form.password) delete payload.password;
       if (isEdit) {
         await client.put(`/employees/${id}`, payload);
         addToast('Employee updated successfully', 'success');
@@ -114,6 +131,13 @@ export default function EmployeeForm() {
             <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
             <input type="email" value={form.email} onChange={handleChange('email')} required className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" />
           </div>
+          {!isEdit && (
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Password <span className="text-gray-400 font-normal">(optional)</span></label>
+              <input type="password" value={form.password} onChange={handleChange('password')} minLength={8} placeholder="Leave blank to generate and email one" className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" />
+              <p className="text-xs text-gray-400 mt-1">If blank, a temporary password will be generated and emailed.</p>
+            </div>
+          )}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Job Position</label>
             <input value={form.job_position} onChange={handleChange('job_position')} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" />
@@ -135,6 +159,13 @@ export default function EmployeeForm() {
             <select value={form.status} onChange={handleChange('status')} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none">
               <option value="active">Active</option>
               <option value="archived">Archived</option>
+            </select>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Working Schedule</label>
+            <select value={form.schedule_id || ''} onChange={handleChange('schedule_id')} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none">
+              <option value="">No schedule assigned</option>
+              {schedules.map((schedule) => <option key={schedule.id} value={schedule.id}>{schedule.name}</option>)}
             </select>
           </div>
         </div>

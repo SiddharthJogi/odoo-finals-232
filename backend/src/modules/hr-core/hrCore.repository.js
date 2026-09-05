@@ -37,6 +37,14 @@ async function findUserById(id) {
   return rows[0] || null;
 }
 
+async function findUserPasswordById(id) {
+  const { rows } = await db.query(
+    'SELECT password_hash, is_active FROM users WHERE id = $1',
+    [id]
+  );
+  return rows[0] || null;
+}
+
 async function findUserByEmployeeId(employeeId) {
   const { rows } = await db.query(
     'SELECT id FROM users WHERE employee_id = $1',
@@ -50,7 +58,7 @@ async function insertUser({ email, passwordHash, roleId, employeeId }) {
     `INSERT INTO users (email, password_hash, role_id, employee_id)
      VALUES ($1, $2, $3, $4)
      RETURNING id, email, role_id, employee_id, is_active, created_at`,
-    [email, passwordHash, roleId, employeeId || null]
+    [email, passwordHash, roleId, employeeId]
   );
   return rows[0];
 }
@@ -73,6 +81,15 @@ async function updateUserRole(userId, roleId) {
     `UPDATE users SET role_id = $1 WHERE id = $2
      RETURNING id, email, role_id, employee_id, is_active`,
     [roleId, userId]
+  );
+  return rows[0] || null;
+}
+
+async function updateUserPassword(userId, passwordHash) {
+  const { rows } = await db.query(
+    `UPDATE users SET password_hash = $1 WHERE id = $2
+     RETURNING id, email, role_id, employee_id, is_active`,
+    [passwordHash, userId]
   );
   return rows[0] || null;
 }
@@ -198,6 +215,17 @@ async function findAllContracts() {
   return rows;
 }
 
+async function findContractById(id) {
+  const { rows } = await db.query(
+    `SELECT c.*, e.name as employee_name
+     FROM contracts c
+     JOIN employees e ON c.employee_id = e.id
+     WHERE c.id = $1`,
+    [id]
+  );
+  return rows[0] || null;
+}
+
 async function findContractsByEmployee(employeeId) {
   const { rows } = await db.query(
     'SELECT * FROM contracts WHERE employee_id = $1 ORDER BY start_date DESC',
@@ -247,6 +275,24 @@ async function insertContract(data) {
   return rows[0];
 }
 
+async function updateContract(id, data) {
+  const fields = [];
+  const params = [];
+
+  for (const [key, value] of Object.entries(data)) {
+    fields.push(`${key} = $${params.length + 1}`);
+    params.push(value);
+  }
+  if (fields.length === 0) return findContractById(id);
+
+  params.push(id);
+  const { rows } = await db.query(
+    `UPDATE contracts SET ${fields.join(', ')} WHERE id = $${params.length} RETURNING *`,
+    params
+  );
+  return rows[0] || null;
+}
+
 // ───────────── Working Schedules ─────────────
 async function findAllSchedules() {
   const { rows } = await db.query('SELECT * FROM working_schedules ORDER BY id');
@@ -284,16 +330,65 @@ async function insertScheduleLine({ scheduleId, dayOfWeek, startTime, endTime, b
   return rows[0];
 }
 
+async function updateSchedule(id, { name, calendarType, lines }) {
+  const client = await db.getClient();
+  try {
+    await client.query('BEGIN');
+    const { rows } = await client.query(
+      `UPDATE working_schedules
+       SET name = COALESCE($1, name), calendar_type = COALESCE($2, calendar_type)
+       WHERE id = $3 AND status = 'active'
+       RETURNING *`,
+      [name || null, calendarType || null, id]
+    );
+    if (!rows[0]) {
+      await client.query('ROLLBACK');
+      return null;
+    }
+
+    if (lines) {
+      await client.query('DELETE FROM schedule_lines WHERE schedule_id = $1', [id]);
+      for (const line of lines) {
+        await client.query(
+          `INSERT INTO schedule_lines (schedule_id, day_of_week, start_time, end_time, break_minutes)
+           VALUES ($1, $2, $3, $4, $5)`,
+          [id, line.day_of_week, line.start_time, line.end_time, line.break_minutes]
+        );
+      }
+    }
+
+    await client.query('COMMIT');
+    return rows[0];
+  } catch (error) {
+    await client.query('ROLLBACK');
+    throw error;
+  } finally {
+    client.release();
+  }
+}
+
+async function archiveSchedule(id) {
+  const { rows } = await db.query(
+    `UPDATE working_schedules SET status = 'archived'
+     WHERE id = $1 AND status = 'active'
+     RETURNING *`,
+    [id]
+  );
+  return rows[0] || null;
+}
+
 module.exports = {
   findAllRoles,
   findRoleById,
   findRoleByName,
   findUserByEmail,
   findUserById,
+  findUserPasswordById,
   findUserByEmployeeId,
   findAllUsers,
   insertUser,
   updateUserRole,
+  updateUserPassword,
   deactivateUser,
   reactivateUser,
   findAllDepartments,
@@ -304,13 +399,17 @@ module.exports = {
   insertEmployeeAndUser,
   updateEmployee,
   findAllContracts,
+  findContractById,
   findContractsByEmployee,
   findApplicableContract,
   findOverlappingActiveContracts,
   insertContract,
+  updateContract,
   findAllSchedules,
   findScheduleById,
   insertSchedule,
   findScheduleLines,
   insertScheduleLine,
+  updateSchedule,
+  archiveSchedule,
 };

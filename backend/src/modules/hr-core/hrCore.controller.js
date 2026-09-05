@@ -4,11 +4,15 @@ const {
   loginSchema,
   createUserSchema,
   updateRoleSchema,
+  changePasswordSchema,
   createEmployeeSchema,
   provisionEmployeeSchema,
   updateEmployeeSchema,
   createContractSchema,
+  updateContractSchema,
+  updateContractStatusSchema,
   createScheduleSchema,
+  updateScheduleSchema,
   createDepartmentSchema,
 } = require('./hrCore.validation');
 
@@ -30,6 +34,12 @@ const updateUserRole = asyncHandler(async (req, res) => {
   const data = updateRoleSchema.parse(req.body);
   const user = await service.updateUserRole(req.user.id, parseInt(req.params.id, 10), data.role_id);
   res.json(user);
+});
+
+const changePassword = asyncHandler(async (req, res) => {
+  const data = changePasswordSchema.parse(req.body);
+  const user = await service.changePassword(req.user.id, data.current_password, data.new_password);
+  res.json({ id: user.id, email: user.email, message: 'Password changed successfully' });
 });
 
 const deactivateUser = asyncHandler(async (req, res) => {
@@ -109,6 +119,11 @@ const listAllContracts = asyncHandler(async (req, res) => {
   res.json(contracts);
 });
 
+const getContract = asyncHandler(async (req, res) => {
+  const contract = await service.getContract(parseInt(req.params.id, 10));
+  res.json(contract);
+});
+
 const listContracts = asyncHandler(async (req, res) => {
   const contracts = await service.listContractsByEmployee(parseInt(req.params.id, 10));
   res.json(contracts);
@@ -118,6 +133,18 @@ const createContract = asyncHandler(async (req, res) => {
   const data = createContractSchema.parse(req.body);
   const contract = await service.createContract(data);
   res.status(201).json(contract);
+});
+
+const updateContract = asyncHandler(async (req, res) => {
+  const data = updateContractSchema.parse(req.body);
+  const contract = await service.updateContract(parseInt(req.params.id, 10), data);
+  res.json(contract);
+});
+
+const updateContractStatus = asyncHandler(async (req, res) => {
+  const { status } = updateContractStatusSchema.parse(req.body);
+  const contract = await service.updateContractStatus(parseInt(req.params.id, 10), status);
+  res.json(contract);
 });
 
 // ───────────── Schedules ─────────────
@@ -137,10 +164,22 @@ const createSchedule = asyncHandler(async (req, res) => {
   res.status(201).json(schedule);
 });
 
+const updateSchedule = asyncHandler(async (req, res) => {
+  const data = updateScheduleSchema.parse(req.body);
+  const schedule = await service.updateSchedule(parseInt(req.params.id, 10), data);
+  res.json(schedule);
+});
+
+const archiveSchedule = asyncHandler(async (req, res) => {
+  const schedule = await service.archiveSchedule(parseInt(req.params.id, 10));
+  res.json(schedule);
+});
+
 module.exports = {
   login,
   createUser,
   updateUserRole,
+  changePassword,
   deactivateUser,
   reactivateUser,
   getMe,
@@ -154,9 +193,14 @@ module.exports = {
   provisionEmployee,
   updateEmployee,
   listAllContracts,
+  getContract,
   listContracts,
   createContract,
+  updateContract,
+  updateContractStatus,
   listSchedules,
   getSchedule,
   createSchedule,
+  updateSchedule,
+  archiveSchedule,
 };
