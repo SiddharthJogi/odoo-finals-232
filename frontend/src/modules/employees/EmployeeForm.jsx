@@ -51,10 +51,9 @@ export default function EmployeeForm() {
           schedule_id: data.schedule_id || '',
           status: data.status || 'active',
           password: '',
-          });
-        })
-        .catch(() => addToast('Failed to load employee data', 'error'));
-      loadPendingDeptRequest(id);
+        });
+      })
+      .catch(() => addToast('Failed to load employee data', 'error'));
     } else {
       client.get('/schedules')
         .then(({ data }) => setSchedules(data.filter((schedule) => schedule.status === 'active')))

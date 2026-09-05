@@ -120,7 +120,7 @@ export default function Requests() {
 
     setSubmitting(true);
     try {
-      await client.post('/time-off/requests', {
+      const { data: createdRequest } = await client.post('/time-off/requests', {
         employee_id: targetEmpId,
         type_id: parseInt(selectedType, 10),
         start_date: startDate,
@@ -131,8 +131,18 @@ export default function Requests() {
       setShowModal(false);
       setStartDate('');
       setEndDate('');
+      if (createdRequest?.start_date) {
+        const [year, month] = createdRequest.start_date.split('-').map(Number);
+        setCalendarMonth(new Date(year, month - 1, 1));
+      }
+      if (createdRequest?.id) {
+        setRequests((previous) => [
+          ...previous.filter((request) => request.id !== createdRequest.id),
+          createdRequest,
+        ]);
+      }
       addToast('Time off request submitted successfully', 'success');
-      fetchRequests();
+      await fetchRequests();
     } catch (err) {
       const msg = err.response?.data?.error || 'Failed to submit leave request';
       setError(msg);
