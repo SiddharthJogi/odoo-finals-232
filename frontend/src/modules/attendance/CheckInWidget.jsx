@@ -109,7 +109,7 @@ export default function CheckInWidget() {
 
           {/* Active Timer Display */}
           {status === 'checked_in' && activeRecord && (
-            <div className="my-8 p-6 bg-emerald-50/70 border border-emerald-100 rounded-2xl">
+            <div className="my-8 p-6 bg-emerald-50/70 border border-emerald-100 rounded-2xl space-y-3">
               <p className="text-xs font-semibold text-emerald-800 uppercase tracking-widest mb-1">Time Elapsed</p>
               <div className="text-5xl font-black text-emerald-900 tracking-tight font-mono my-2">
                 {formatElapsed(elapsed)}
@@ -117,20 +117,42 @@ export default function CheckInWidget() {
               <p className="text-xs text-emerald-700 font-medium">
                 Checked in at <span className="font-semibold">{new Date(activeRecord.check_in).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
               </p>
+              {activeRecord.is_late && (
+                <div className="inline-flex items-center gap-1.5 px-3 py-1 bg-amber-100 border border-amber-200 text-amber-900 rounded-full text-xs font-semibold">
+                  <span>⏰</span>
+                  <span>Late Check-in (+{activeRecord.late_minutes}m past shift start)</span>
+                </div>
+              )}
+              {activeRecord.penalty_message && (
+                <div className="mt-2 p-3 bg-rose-100 border border-rose-200 text-rose-900 rounded-xl text-xs font-bold text-left flex items-center gap-2">
+                  <span className="text-lg">🚨</span>
+                  <span>{activeRecord.penalty_message}</span>
+                </div>
+              )}
             </div>
           )}
 
           {/* Checked Out Result Display */}
           {status === 'checked_out' && activeRecord?.check_out && (
-            <div className="my-8 p-6 bg-blue-50/70 border border-blue-100 rounded-2xl">
+            <div className="my-8 p-6 bg-blue-50/70 border border-blue-100 rounded-2xl space-y-2">
               <div className="w-12 h-12 mx-auto bg-blue-100 text-blue-600 rounded-full flex items-center justify-center text-xl font-bold mb-2">
                 ✓
               </div>
               <p className="text-blue-900 font-semibold text-lg">Shift Completed</p>
               {activeRecord.worked_hours && (
-                <p className="text-blue-700 text-sm mt-1">
+                <p className="text-blue-700 text-sm">
                   Total Worked: <span className="font-bold">{Number(activeRecord.worked_hours).toFixed(2)} hrs</span>
                 </p>
+              )}
+              {activeRecord.is_late && (
+                <div className="inline-flex items-center gap-1 px-2.5 py-1 bg-amber-100 text-amber-900 rounded-full text-xs font-semibold mt-1">
+                  ⏰ Late Check-In (+{activeRecord.late_minutes}m)
+                </div>
+              )}
+              {activeRecord.overtime_hours > 0 && (
+                <div className="inline-flex items-center gap-1 px-2.5 py-1 bg-purple-100 text-purple-900 rounded-full text-xs font-semibold mt-1">
+                  ⚡ Overtime Logged (+{activeRecord.overtime_hours} hrs past shift end)
+                </div>
               )}
             </div>
           )}

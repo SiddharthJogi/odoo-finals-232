@@ -2,16 +2,59 @@ const repo = require('./timeOps.repository');
 const db = require('../../db');
 const { ValidationError, NotFoundError } = require('../../shared/errors');
 
+function decorateAttendanceSchedule(att) {
+  if (!att) return null;
+  const checkInDate = att.check_in ? new Date(att.check_in) : null;
+  
+  let isLate = false;
+  let lateMinutes = 0;
+  let overtimeHours = 0;
+
+  if (checkInDate && att.scheduled_start) {
+    const [startH, startM] = att.scheduled_start.split(':').map(Number);
+    const schedStart = new Date(checkInDate);
+    schedStart.setHours(startH, startM, 0, 0);
+
+    const diffMs = checkInDate.getTime() - schedStart.getTime();
+    const diffMins = Math.floor(diffMs / 60000);
+
+    if (diffMins >= 15) {
+      isLate = true;
+      lateMinutes = diffMins;
+    }
+  }
+
+  if (att.check_out && att.scheduled_end) {
+    const checkOutDate = new Date(att.check_out);
+    const [endH, endM] = att.scheduled_end.split(':').map(Number);
+    const schedEnd = new Date(checkOutDate);
+    schedEnd.setHours(endH, endM, 0, 0);
+
+    if (checkOutDate > schedEnd) {
+      overtimeHours = Number(((checkOutDate.getTime() - schedEnd.getTime()) / 3600000).toFixed(2));
+    }
+  }
+
+  return {
+    ...att,
+    is_late: isLate,
+    late_minutes: lateMinutes,
+    overtime_hours: overtimeHours,
+  };
+}
+
 // ───────────── Attendance ─────────────
 async function listAttendances(filters) {
-  return repo.findAttendances(filters);
+  const rows = await repo.findAttendances(filters);
+  return rows.map(decorateAttendanceSchedule);
 }
 
 async function createAttendance(data) {
-  return repo.insertAttendance({
+  const created = await repo.insertAttendance({
     employeeId: data.employee_id,
     checkIn: data.check_in,
   });
+  return decorateAttendanceSchedule(created);
 }
 
 /**
@@ -19,7 +62,8 @@ async function createAttendance(data) {
  */
 async function getActiveAttendance(employeeId) {
   if (!employeeId) return null;
-  return repo.findOpenAttendance(employeeId);
+  const active = await repo.findOpenAttendance(employeeId);
+  return decorateAttendanceSchedule(active);
 }
 
 /**
@@ -34,7 +78,76 @@ async function checkIn(employeeId) {
   if (open) {
     throw new ValidationError('Employee already has an open attendance — check out first');
   }
-  return repo.insertAttendance({ employeeId, checkIn: new Date().toISOString() });
+  const created = await repo.insertAttendance({ employeeId, checkIn: new Date().toISOString() });
+  const openWithSchedule = await repo.findOpenAttendance(employeeId);
+  let decorated = decorateAttendanceSchedule(openWithSchedule || created);
+
+  // Event-Driven Late Violation Check
+  if (decorated && decorated.is_late) {
+    // Flag the attendance record
+    await repo.updateAttendance(decorated.id, { status: 'flagged' });
+    decorated.status = 'flagged';
+
+    // Count late violations for employee
+    const lateCount = await repo.countLateAttendances(employeeId);
+
+    // Every 3 late violations -> auto-deduct 0.5 day leave
+    if (lateCount > 0 && lateCount % 3 === 0) {
+      try {
+        const types = await repo.findAllTimeOffTypes();
+        const targetType = types.find((t) => t.requires_allocation) || types[0];
+
+        if (targetType) {
+          const today = new Date().toISOString().slice(0, 10);
+          const client = await db.getClient();
+          try {
+            await client.query('BEGIN');
+            
+            // Check & deduct allocation if applicable
+            const alloc = await repo.findAllocationForDeduction(employeeId, targetType.id);
+            if (alloc) {
+              await repo.deductAllocation(alloc.id, 0.5, client);
+            }
+
+            // Insert system-generated approved time_off_request
+            const req = await repo.insertTimeOffRequest({
+              employee_id: employeeId,
+              type_id: targetType.id,
+              start_date: today,
+              end_date: today,
+              duration: 0.5,
+            });
+
+            await repo.updateTimeOffRequestStatus(req.id, 'approved', null, client);
+
+            // Create audit trail entry
+            await repo.insertAuditLog({
+              userId: null,
+              action: 'auto_deduct',
+              entity: 'time_off_requests',
+              entityId: req.id,
+              afterJson: { duration: 0.5, type_id: targetType.id, employee_id: employeeId },
+              note: `Auto-deducted 0.5 days leave for 3 late attendance violations (Violation #${lateCount})`,
+            }, client);
+
+            await client.query('COMMIT');
+
+            decorated.auto_deducted = true;
+            decorated.penalty_message = `Auto-deducted 0.5 day leave for 3 late attendance violations (Violation #${lateCount})`;
+          } catch (txErr) {
+            await client.query('ROLLBACK');
+            console.error('Auto leave deduction failed:', txErr);
+          } finally {
+            client.release();
+          }
+        }
+      } catch (err) {
+        console.error('Failed to process late attendance penalty:', err);
+      }
+    }
+  }
+
+  return decorated;
 }
 
 /**
@@ -48,7 +161,8 @@ async function checkOut(employeeId) {
   if (!open) {
     throw new ValidationError('No open attendance found — check in first');
   }
-  return repo.updateAttendanceCheckOut(open.id, new Date().toISOString());
+  const updated = await repo.updateAttendanceCheckOut(open.id, new Date().toISOString());
+  return decorateAttendanceSchedule({ ...open, ...updated });
 }
 
 async function correctAttendance(id, data, correctedBy) {
