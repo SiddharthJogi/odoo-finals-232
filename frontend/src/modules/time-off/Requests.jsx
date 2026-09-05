@@ -31,6 +31,7 @@ export default function Requests() {
   const [responsibleId, setResponsibleId] = useState('');
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
+  const [leaveMode, setLeaveMode] = useState('full_day'); // full_day, half_morning, half_afternoon
   const [duration, setDuration] = useState(1);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
@@ -41,6 +42,36 @@ export default function Requests() {
     fetchRequests();
     fetchModalOptions();
   }, []);
+
+  // Auto calculate duration in working days (excluding weekends) & handle half-day mode
+  useEffect(() => {
+    if (leaveMode === 'half_morning' || leaveMode === 'half_afternoon') {
+      setDuration(0.5);
+      if (startDate) {
+        setEndDate(startDate);
+      }
+      return;
+    }
+
+    if (startDate && endDate) {
+      const [sY, sM, sD] = startDate.split('T')[0].split('-').map(Number);
+      const [eY, eM, eD] = endDate.split('T')[0].split('-').map(Number);
+      const start = new Date(sY, sM - 1, sD, 0, 0, 0);
+      const end = new Date(eY, eM - 1, eD, 0, 0, 0);
+      if (end >= start) {
+        let workingDays = 0;
+        const cur = new Date(start);
+        while (cur <= end) {
+          const day = cur.getDay(); // 0 = Sun, 6 = Sat
+          if (day !== 0 && day !== 6) {
+            workingDays++;
+          }
+          cur.setDate(cur.getDate() + 1);
+        }
+        setDuration(workingDays);
+      }
+    }
+  }, [startDate, endDate, leaveMode]);
 
   const fetchRequests = async () => {
     setLoading(true);
@@ -507,6 +538,30 @@ export default function Requests() {
                 </div>
               )}
 
+              <div>
+                <label className="block text-xs font-semibold text-gray-600 mb-1">Leave Duration Mode</label>
+                <div className="grid grid-cols-3 gap-2">
+                  {[
+                    { id: 'full_day', label: 'Full Day(s)' },
+                    { id: 'half_morning', label: 'Half Day (Morning)' },
+                    { id: 'half_afternoon', label: 'Half Day (Afternoon)' },
+                  ].map((mode) => (
+                    <button
+                      key={mode.id}
+                      type="button"
+                      onClick={() => setLeaveMode(mode.id)}
+                      className={`px-2 py-2 rounded-xl text-[11px] font-semibold border transition text-center ${
+                        leaveMode === mode.id
+                          ? 'bg-blue-600 text-white border-blue-600 shadow-xs'
+                          : 'bg-white text-gray-700 border-gray-200 hover:bg-gray-50'
+                      }`}
+                    >
+                      {mode.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block text-xs font-semibold text-gray-600 mb-1">Start Date</label>
@@ -514,7 +569,10 @@ export default function Requests() {
                     type="date"
                     required
                     value={startDate}
-                    onChange={(e) => setStartDate(e.target.value)}
+                    onChange={(e) => {
+                      setStartDate(e.target.value);
+                      if (leaveMode !== 'full_day') setEndDate(e.target.value);
+                    }}
                     className="w-full text-sm border-gray-300 rounded-xl px-3 py-2 border focus:ring-blue-500"
                   />
                 </div>
@@ -523,9 +581,10 @@ export default function Requests() {
                   <input
                     type="date"
                     required
+                    disabled={leaveMode !== 'full_day'}
                     value={endDate}
                     onChange={(e) => setEndDate(e.target.value)}
-                    className="w-full text-sm border-gray-300 rounded-xl px-3 py-2 border focus:ring-blue-500"
+                    className="w-full text-sm border-gray-300 rounded-xl px-3 py-2 border focus:ring-blue-500 disabled:bg-gray-100 disabled:text-gray-500"
                   />
                 </div>
               </div>
@@ -539,9 +598,12 @@ export default function Requests() {
                   required
                   readOnly
                   value={duration}
-                  className="w-full text-sm border-gray-300 rounded-xl px-3 py-2 border bg-gray-50 text-gray-600 cursor-not-allowed"
+                  className="w-full text-sm border-gray-300 rounded-xl px-3 py-2 border bg-gray-50 text-gray-600 cursor-not-allowed font-bold"
                 />
-                <p className="text-[11px] text-gray-400 mt-1">Auto-calculated from the selected dates — weekends are excluded automatically.</p>
+                <p className="text-[11px] text-gray-400 mt-1">
+                  {leaveMode === 'full_day' ? 'Auto-calculated working days (weekends excluded).' : 'Half-day partial leave locked to 0.5 days.'}
+                </p>
+              </div>
               </div>
 
               <div>

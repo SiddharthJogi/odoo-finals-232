@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../../auth/AuthContext';
 import client from '../../api/client';
-import { Clock, CheckCircle2, Users, CalendarOff, Timer, Activity } from 'lucide-react';
+import { Clock, CheckCircle2, Users, CalendarOff, Timer, Activity, Download } from 'lucide-react';
 
 function SkeletonRow() {
   return (
@@ -88,6 +88,29 @@ export default function AttendanceList() {
     }
   };
 
+  const exportToCSV = () => {
+    const headers = ['ID', 'Employee Name', 'Job Position', 'Check In', 'Check Out', 'Worked Hours', 'Late Minutes', 'Overtime Hours', 'Status'];
+    const rows = attendances.map((att) => [
+      att.id,
+      `"${att.employee_name || `Employee #${att.employee_id}`}"`,
+      `"${att.job_position || ''}"`,
+      att.check_in ? `"${new Date(att.check_in).toLocaleString()}"` : '',
+      att.check_out ? `"${new Date(att.check_out).toLocaleString()}"` : '',
+      att.worked_hours || 0,
+      att.late_minutes || 0,
+      att.overtime_hours || 0,
+      att.status,
+    ]);
+    const csvContent = 'data:text/csv;charset=utf-8,' + [headers.join(','), ...rows.map((e) => e.join(','))].join('\n');
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement('a');
+    link.setAttribute('href', encodedUri);
+    link.setAttribute('download', `attendance_logs_${formatLocalDate(new Date())}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
   const presentToday = new Set(todayAttendances.map((attendance) => attendance.employee_id)).size;
   const presenceRate = employeeCount > 0 ? Math.min(100, Math.round((presentToday / employeeCount) * 100)) : 0;
 
@@ -133,13 +156,23 @@ export default function AttendanceList() {
             {loading ? '...' : `${attendances.length} shift logs loaded`} · Late mark flagging (+15m), overtime, multi-shift totals, and 3-late penalty rules
           </p>
         </div>
-        <Link
-          to="/attendance/check-in"
-          className="inline-flex items-center gap-2 px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-semibold shadow-sm transition"
-        >
-          <CheckCircle2 className="w-4 h-4" />
-          Open Check In/Out Widget
-        </Link>
+        <div className="flex flex-wrap items-center gap-3">
+          <button
+            onClick={exportToCSV}
+            disabled={attendances.length === 0}
+            className="inline-flex items-center gap-2 px-4 py-2.5 bg-white border border-gray-300 hover:bg-gray-50 text-gray-700 rounded-xl font-semibold shadow-xs transition text-sm disabled:opacity-50"
+          >
+            <Download className="w-4 h-4 text-indigo-600" />
+            Export CSV
+          </button>
+          <Link
+            to="/attendance/check-in"
+            className="inline-flex items-center gap-2 px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-semibold shadow-sm transition text-sm"
+          >
+            <CheckCircle2 className="w-4 h-4" />
+            Open Check In/Out Widget
+          </Link>
+        </div>
       </div>
 
       {/* Management Snapshot */}

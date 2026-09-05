@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useAuth } from '../../auth/AuthContext';
 import client from '../../api/client';
 import { fetchAllEmployees } from '../../api/employees';
-import { CalendarDays, TrendingDown, CheckCircle2, AlertCircle } from 'lucide-react';
+import { CalendarDays, TrendingDown, CheckCircle2, AlertCircle, Download } from 'lucide-react';
 import { motion } from 'framer-motion';
 
 function SkeletonRow() {
@@ -66,6 +66,29 @@ export default function Allocations() {
     }
   };
 
+  const exportToCSV = () => {
+    const headers = ['ID', 'Employee Name', 'Leave Type', 'Allocated Days', 'Taken Days', 'Remaining Balance', 'Valid From', 'Valid To', 'Status'];
+    const rows = allocations.map((alloc) => [
+      alloc.id,
+      `"${alloc.employee_name || `Employee #${alloc.employee_id}`}"`,
+      `"${alloc.type_name || `Type #${alloc.type_id}`}"`,
+      alloc.allocated,
+      alloc.taken || 0,
+      alloc.remaining !== undefined ? alloc.remaining : (Number(alloc.allocated) - Number(alloc.taken || 0)),
+      alloc.valid_from,
+      alloc.valid_to || 'Indefinite',
+      alloc.status,
+    ]);
+    const csvContent = 'data:text/csv;charset=utf-8,' + [headers.join(','), ...rows.map((e) => e.join(','))].join('\n');
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement('a');
+    link.setAttribute('href', encodedUri);
+    link.setAttribute('download', `leave_allocations_${new Date().toISOString().slice(0, 10)}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
   const handleCreateAllocation = async (e) => {
     e.preventDefault();
     setError('');
@@ -99,14 +122,24 @@ export default function Allocations() {
           </h1>
           <p className="text-sm text-gray-500">Employee leave balances and granted allowances</p>
         </div>
-        {canCreate && (
+        <div className="flex items-center gap-3">
           <button
-            onClick={() => setShowModal(true)}
-            className="inline-flex items-center gap-2 px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-semibold shadow-sm transition"
+            onClick={exportToCSV}
+            disabled={allocations.length === 0}
+            className="inline-flex items-center gap-2 px-4 py-2.5 bg-white border border-gray-300 hover:bg-gray-50 text-gray-700 rounded-xl font-semibold shadow-xs transition text-sm disabled:opacity-50"
           >
-            + Grant Leave Allocation
+            <Download className="w-4 h-4 text-amber-600" />
+            Export CSV
           </button>
-        )}
+          {canCreate && (
+            <button
+              onClick={() => setShowModal(true)}
+              className="inline-flex items-center gap-2 px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-semibold shadow-sm transition text-sm"
+            >
+              + Grant Leave Allocation
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Grid of Allocation Cards */}
