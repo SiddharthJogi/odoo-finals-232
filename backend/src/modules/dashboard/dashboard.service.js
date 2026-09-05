@@ -204,6 +204,39 @@ async function createAuditLog({ user_id = null, action = 'ai_flag', entity = 'pa
   return rows[0];
 }
 
+async function getHighestSalaryByDepartment() {
+  const { rows } = await db.query(`
+    SELECT DISTINCT ON (d.id)
+           d.id AS department_id,
+           d.name AS department,
+           e.name AS employee_name,
+           e.job_position,
+           COALESCE(ps.net_total, 0) AS highest_net,
+           COALESCE(ps.gross_total, 0) AS highest_gross
+    FROM payslips ps
+    JOIN employees e ON ps.employee_id = e.id
+    JOIN departments d ON e.department_id = d.id
+    JOIN payruns pr ON ps.payrun_id = pr.id
+    WHERE pr.status = 'paid'
+    ORDER BY d.id, ps.net_total DESC
+  `);
+
+  return rows.map((r) => ({
+    department_id: parseInt(r.department_id, 10),
+    department: r.department,
+    employee_name: r.employee_name,
+    job_position: r.job_position,
+    highest_net: parseFloat(r.highest_net),
+    highest_gross: parseFloat(r.highest_gross),
+  }));
+}
+
+async function getSalaryStructures() {
+  const { rows } = await db.query(`SELECT id, name, status FROM salary_structures`);
+  return rows;
+}
+
+
 module.exports = {
   getSummary,
   getSalaryByDepartment,
@@ -211,5 +244,9 @@ module.exports = {
   getAttendanceOverview,
   getTimeOffOverview,
   getWarnings,
+  getHighestSalaryByDepartment,
+  getSalaryStructures,
   createAuditLog,
 };
+
+

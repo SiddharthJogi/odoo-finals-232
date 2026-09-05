@@ -2,7 +2,6 @@ import React, { useState, useRef, useEffect } from 'react';
 import client from '../api/client';
 import {
   Sparkles,
-  MessageSquare,
   X,
   Send,
   Bot,
@@ -12,6 +11,9 @@ import {
   PieChart,
   DollarSign,
   Loader2,
+  Zap,
+  ShieldCheck,
+  Cpu,
 } from 'lucide-react';
 
 const SUGGESTED_PROMPTS = [
@@ -28,7 +30,8 @@ export default function AiCopilotWidget() {
   const [messages, setMessages] = useState([
     {
       sender: 'ai',
-      text: 'Hello! I am your PeoplePay360 AI Copilot. Ask me anything about payroll disbursements, department costs, leave balances, or compliance anomalies.',
+      text: 'Hello! I am your PeoplePay360 AI Copilot powered by Gemini & DB Intelligence. Ask me anything about payroll disbursements, department costs, leave balances, or compliance anomalies.',
+      source: 'system',
       timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
     },
   ]);
@@ -46,8 +49,21 @@ export default function AiCopilotWidget() {
   }, [messages, isOpen]);
 
   const handleSend = async (customQuery) => {
-    const q = customQuery || question;
-    if (!q.trim() || loading) return;
+    const q = (customQuery || question).trim();
+    if (!q || loading) return;
+
+    if (q.length > 300) {
+      setMessages((prev) => [
+        ...prev,
+        {
+          sender: 'ai',
+          text: 'Query is too long. Please keep questions under 300 characters.',
+          isError: true,
+          timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        },
+      ]);
+      return;
+    }
 
     const userMsg = {
       sender: 'user',
@@ -66,16 +82,24 @@ export default function AiCopilotWidget() {
         text: data.answer || 'Query processed.',
         intent: data.intent,
         data: data.data,
+        cached: data.cached,
+        source: data.source || 'gemini',
+        modelUsed: data.modelUsed,
         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
       };
       setMessages((prev) => [...prev, aiMsg]);
     } catch (err) {
+      const errorResponse = err.response?.data;
+      const errorMessage =
+        errorResponse?.error || 'Sorry, I encountered an issue connecting to the AI microservice.';
+
       setMessages((prev) => [
         ...prev,
         {
           sender: 'ai',
-          text: 'Sorry, I encountered an issue connecting to the AI microservice.',
+          text: errorMessage,
           isError: true,
+          isRateLimited: err.response?.status === 429,
           timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
         },
       ]);
@@ -83,6 +107,35 @@ export default function AiCopilotWidget() {
       setLoading(false);
     }
   };
+
+  const renderSourceBadge = (msg) => {
+    if (msg.sender !== 'ai' || msg.isError || msg.source === 'system') return null;
+
+    if (msg.cached) {
+      return (
+        <span className="inline-flex items-center gap-1 text-[9px] font-extrabold text-amber-700 bg-amber-50 px-1.5 py-0.5 rounded border border-amber-200">
+          <Zap className="w-2.5 h-2.5 text-amber-500" /> Cached
+        </span>
+      );
+    }
+    if (msg.source === 'gemini') {
+      const modelLabel = msg.modelUsed ? msg.modelUsed.replace('-', ' ') : 'Gemini AI';
+      return (
+        <span className="inline-flex items-center gap-1 text-[9px] font-extrabold text-purple-700 bg-purple-50 px-1.5 py-0.5 rounded border border-purple-200">
+          <Cpu className="w-2.5 h-2.5 text-purple-500" /> {modelLabel}
+        </span>
+      );
+    }
+    if (msg.source === 'fallback') {
+      return (
+        <span className="inline-flex items-center gap-1 text-[9px] font-extrabold text-blue-700 bg-blue-50 px-1.5 py-0.5 rounded border border-blue-200">
+          <ShieldCheck className="w-2.5 h-2.5 text-blue-500" /> Verified Data
+        </span>
+      );
+    }
+    return null;
+  };
+
 
   return (
     <>
@@ -108,7 +161,7 @@ export default function AiCopilotWidget() {
               </div>
               <div>
                 <h3 className="font-bold text-sm">PeoplePay360 Copilot</h3>
-                <p className="text-[10px] text-blue-200 font-medium">Odoo-Inspired Intelligence Layer</p>
+                <p className="text-[10px] text-blue-200 font-medium">Gemini 1.5 & Verified Backend Intelligence</p>
               </div>
             </div>
             <button
@@ -128,7 +181,7 @@ export default function AiCopilotWidget() {
                   key={idx}
                   onClick={() => handleSend(p.query)}
                   disabled={loading}
-                  className="whitespace-nowrap flex items-center gap-1 px-2.5 py-1 bg-white border border-gray-200 hover:border-blue-300 text-gray-700 hover:text-blue-600 text-[11px] font-semibold rounded-full shadow-2xs transition"
+                  className="whitespace-nowrap flex items-center gap-1 px-2.5 py-1 bg-white border border-gray-200 hover:border-blue-300 text-gray-700 hover:text-blue-600 text-[11px] font-semibold rounded-full shadow-2xs transition disabled:opacity-50"
                 >
                   <IconComp className="w-3 h-3 text-blue-500" />
                   {p.label}
@@ -150,19 +203,26 @@ export default function AiCopilotWidget() {
                   </div>
                 )}
 
-                <div className={`max-w-[80%] rounded-2xl p-3 shadow-2xs ${
-                  msg.sender === 'user'
-                    ? 'bg-blue-600 text-white rounded-tr-xs font-medium'
-                    : msg.isError
-                    ? 'bg-red-50 text-red-800 border border-red-200 rounded-tl-xs'
-                    : 'bg-gray-100 text-gray-800 rounded-tl-xs border border-gray-200'
-                }`}>
+                <div
+                  className={`max-w-[82%] rounded-2xl p-3 shadow-2xs ${
+                    msg.sender === 'user'
+                      ? 'bg-blue-600 text-white rounded-tr-xs font-medium'
+                      : msg.isError
+                      ? 'bg-rose-50 text-rose-800 border border-rose-200 rounded-tl-xs'
+                      : 'bg-gray-100 text-gray-800 rounded-tl-xs border border-gray-200'
+                  }`}
+                >
                   <p className="leading-relaxed">{msg.text}</p>
-                  <span className={`block text-[9px] mt-1 text-right ${
-                    msg.sender === 'user' ? 'text-blue-200' : 'text-gray-400'
-                  }`}>
-                    {msg.timestamp}
-                  </span>
+                  <div className="flex items-center justify-between gap-2 mt-1.5 pt-1 border-t border-black/5">
+                    {renderSourceBadge(msg)}
+                    <span
+                      className={`text-[9px] ${
+                        msg.sender === 'user' ? 'text-blue-200 ml-auto' : 'text-gray-400 ml-auto'
+                      }`}
+                    >
+                      {msg.timestamp}
+                    </span>
+                  </div>
                 </div>
 
                 {msg.sender === 'user' && (
@@ -175,7 +235,7 @@ export default function AiCopilotWidget() {
             {loading && (
               <div className="flex items-center gap-2 text-xs text-gray-400 italic font-medium">
                 <Loader2 className="w-4 h-4 animate-spin text-blue-600" />
-                Copilot is analyzing payroll rules...
+                Copilot is processing question via Gemini & backend...
               </div>
             )}
             <div ref={messagesEndRef} />
@@ -191,8 +251,9 @@ export default function AiCopilotWidget() {
           >
             <input
               type="text"
-              placeholder="Ask Copilot a question..."
+              placeholder="Ask Copilot a question (max 300 chars)..."
               value={question}
+              maxLength={300}
               onChange={(e) => setQuestion(e.target.value)}
               className="flex-1 bg-gray-50 border border-gray-300 rounded-xl px-3 py-2 text-xs text-gray-800 font-medium focus:ring-2 focus:ring-blue-500 focus:outline-none"
             />
