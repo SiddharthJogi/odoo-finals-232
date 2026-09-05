@@ -1,7 +1,10 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import client from '../../api/client';
-import { Users, List, UserCircle, Briefcase } from 'lucide-react';
+import { Users, List, Briefcase } from 'lucide-react';
+import { useEmployeeSearch } from './useEmployeeSearch';
+import EmployeeFilterBar from './EmployeeFilterBar';
+import PresenceBadge from './PresenceBadge';
 
 const DEPT_COLORS = [
   'from-blue-500 to-indigo-600',
@@ -29,18 +32,16 @@ function SkeletonCard() {
 }
 
 export default function EmployeeKanban() {
-  const [employees, setEmployees] = useState([]);
   const [departments, setDepartments] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const {
+    employees, total, loading,
+    search, setSearch, deptFilter, setDeptFilter,
+    typeFilter, setTypeFilter, statusFilter, setStatusFilter,
+    clearFilters, hasActiveFilters,
+  } = useEmployeeSearch({ limit: 200 }); // kanban shows one large filtered page, grouped into columns
 
   useEffect(() => {
-    Promise.all([client.get('/employees'), client.get('/departments')])
-      .then(([empRes, deptRes]) => {
-        setEmployees(empRes.data);
-        setDepartments(deptRes.data);
-      })
-      .catch(console.error)
-      .finally(() => setLoading(false));
+    client.get('/departments').then(({ data }) => setDepartments(data)).catch(console.error);
   }, []);
 
   // Build dept name map
@@ -65,7 +66,7 @@ export default function EmployeeKanban() {
             Employees — Kanban
           </h1>
           <p className="text-xs text-gray-500 mt-1">
-            {loading ? '...' : `${employees.length} employees across ${Object.keys(groups).length} departments`}
+            {loading ? '...' : `${total} employee${total !== 1 ? 's' : ''} across ${Object.keys(groups).length} departments`}
           </p>
         </div>
         <Link
@@ -76,6 +77,16 @@ export default function EmployeeKanban() {
           List View
         </Link>
       </div>
+
+      <EmployeeFilterBar
+        search={search} setSearch={setSearch}
+        deptFilter={deptFilter} setDeptFilter={setDeptFilter}
+        typeFilter={typeFilter} setTypeFilter={setTypeFilter}
+        statusFilter={statusFilter} setStatusFilter={setStatusFilter}
+        departments={departments}
+        hasActiveFilters={hasActiveFilters}
+        clearFilters={clearFilters}
+      />
 
       <div className="flex gap-5 overflow-x-auto pb-6" style={{ minHeight: 400 }}>
         {loading
@@ -111,7 +122,7 @@ export default function EmployeeKanban() {
                           <Briefcase className="w-3 h-3 shrink-0" />
                           {emp.job_position || 'No position'}
                         </p>
-                        <div className="flex items-center gap-1.5 mt-2">
+                        <div className="flex items-center gap-1.5 mt-2 flex-wrap">
                           <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${TYPE_STYLES[emp.employee_type] || 'bg-gray-50 text-gray-600'}`}>
                             {emp.employee_type?.replace('_', ' ')}
                           </span>
@@ -121,6 +132,7 @@ export default function EmployeeKanban() {
                               Active
                             </span>
                           )}
+                          <PresenceBadge isPresent={emp.is_present} />
                         </div>
                       </div>
                     </div>
@@ -135,8 +147,12 @@ export default function EmployeeKanban() {
           <div className="flex items-center justify-center w-full py-24">
             <div className="text-center">
               <Users className="w-16 h-16 text-gray-200 mx-auto mb-4" />
-              <p className="text-gray-500 font-semibold">No employees found</p>
-              <Link to="/employees/new" className="mt-3 inline-block text-blue-600 text-sm underline">Add first employee</Link>
+              <p className="text-gray-500 font-semibold">No employees match your filters</p>
+              {hasActiveFilters ? (
+                <button onClick={clearFilters} className="mt-3 inline-block text-blue-600 text-sm underline">Clear filters</button>
+              ) : (
+                <Link to="/employees/new" className="mt-3 inline-block text-blue-600 text-sm underline">Add first employee</Link>
+              )}
             </div>
           </div>
         )}

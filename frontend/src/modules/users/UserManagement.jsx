@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import client from '../../api/client';
+import { fetchAllEmployees } from '../../api/employees';
 
 const ROLE_COLORS = {
   admin: 'bg-red-100 text-red-800',
@@ -59,10 +60,10 @@ export default function UserManagement() {
     fetchUsers();
     Promise.all([
       client.get('/roles'),
-      client.get('/employees'),
-    ]).then(([rolesRes, empRes]) => {
+      fetchAllEmployees(),
+    ]).then(([rolesRes, empList]) => {
       setRoles(rolesRes.data);
-      setEmployees(empRes.data);
+      setEmployees(empList);
       const employeeRole = rolesRes.data.find((role) => role.name === 'employee');
       if (employeeRole) {
         setForm(f => ({ ...f, role_id: String(employeeRole.id) }));

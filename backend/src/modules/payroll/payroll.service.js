@@ -160,14 +160,20 @@ async function createPayrun(data, createdBy) {
         periodEnd: data.period_end,
       });
 
+      // A joining bonus is paid out exactly once, on the contract's first payslip.
+      const includeJoiningBonus = Number(contract.joining_bonus) > 0 && !contract.joining_bonus_payslip_id;
+      const grossTotal = includeJoiningBonus
+        ? result.gross_total + Number(contract.joining_bonus)
+        : result.gross_total;
+
       // Insert payslip
       const payslip = await repo.insertPayslip({
         payrun_id: payrun.id,
         employee_id: empId,
         contract_id: contract.id,
         worked_days: result.payrollInputs.worked_days,
-        gross_total: result.gross_total,
-        net_total: result.net_total,
+        gross_total: grossTotal,
+        net_total: result.net_total + (grossTotal - result.gross_total),
         has_warning: hasWarning,
         warning_reason: warningReason,
       }, client);
@@ -182,6 +188,18 @@ async function createPayrun(data, createdBy) {
           sequence: line.sequence,
           value: line.value,
         }, client);
+      }
+
+      if (includeJoiningBonus) {
+        await repo.insertPayslipLine({
+          payslip_id: payslip.id,
+          rule_id: null,
+          label: 'Joining Bonus',
+          category: 'allowance',
+          sequence: (result.lines[result.lines.length - 1]?.sequence || 0) + 1,
+          value: Number(contract.joining_bonus),
+        }, client);
+        await hrCoreService.markContractJoiningBonusPaid(contract.id, payslip.id, client);
       }
     }
 
@@ -266,10 +284,19 @@ async function transitionPayrun(payrunId, targetStatus) {
           periodStart: payrun.period_start,
           periodEnd: payrun.period_end,
         });
+
+        // Recomputation must keep re-adding the bonus line to the same payslip it was
+        // originally paid on (it was just deleted below), but never pay it a second time.
+        const carriesJoiningBonus = Number(contract.joining_bonus) > 0
+          && contract.joining_bonus_payslip_id === payslip.id;
+        const grossTotal = carriesJoiningBonus
+          ? result.gross_total + Number(contract.joining_bonus)
+          : result.gross_total;
+
         await repo.updatePayslipCalculation(payslip.id, {
           worked_days: result.payrollInputs.worked_days,
-          gross_total: result.gross_total,
-          net_total: result.net_total,
+          gross_total: grossTotal,
+          net_total: result.net_total + (grossTotal - result.gross_total),
         }, client);
         await repo.deletePayslipLines(payslip.id, client);
         for (const line of result.lines) {
@@ -280,6 +307,16 @@ async function transitionPayrun(payrunId, targetStatus) {
             category: line.category,
             sequence: line.sequence,
             value: line.value,
+          }, client);
+        }
+        if (carriesJoiningBonus) {
+          await repo.insertPayslipLine({
+            payslip_id: payslip.id,
+            rule_id: null,
+            label: 'Joining Bonus',
+            category: 'allowance',
+            sequence: (result.lines[result.lines.length - 1]?.sequence || 0) + 1,
+            value: Number(contract.joining_bonus),
           }, client);
         }
       }

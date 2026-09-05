@@ -11,6 +11,7 @@ import EmployeeList from './modules/employees/EmployeeList';
 import EmployeeForm from './modules/employees/EmployeeForm';
 import EmployeeKanban from './modules/employees/EmployeeKanban';
 import ContractHistory from './modules/employees/ContractHistory';
+import DepartmentRequests from './modules/employees/DepartmentRequests';
 import ContractList from './modules/contracts/ContractList';
 import ContractForm from './modules/contracts/ContractForm';
 import ScheduleList from './modules/schedules/ScheduleList';
@@ -37,99 +38,15 @@ import Dashboard from './modules/dashboard/Dashboard';
 import AiCopilotWidget from './components/AiCopilotWidget';
 
 import {
-  LayoutDashboard,
-  Users,
-  Clock,
-  CalendarDays,
-  DollarSign,
   ChevronDown,
   Menu,
   X,
   LogOut,
   UserCircle,
   KeyRound,
-  Sparkles,
-  FileText,
-  Calendar,
 } from 'lucide-react';
-
-const NAV_ITEMS = [
-  {
-    path: '/users',
-    label: 'Users',
-    icon: UserCircle,
-    roles: ['admin'],
-  },
-  {
-    path: '/employees',
-    label: 'Employees',
-    icon: Users,
-    roles: ['admin', 'hr_manager', 'hr_payroll_manager', 'hr_payroll_user'],
-    children: [
-      { path: '/employees', label: 'All Employees' },
-      { path: '/employees/kanban', label: 'Kanban View' },
-      { path: '/employees/new', label: '+ New Employee' },
-    ],
-  },
-  {
-    path: '/contracts',
-    label: 'Contracts',
-    icon: FileText,
-    roles: ['admin', 'hr_manager', 'hr_payroll_manager', 'hr_payroll_user'],
-    children: [
-      { path: '/contracts', label: 'All Contracts' },
-      { path: '/contracts/new', label: '+ New Contract' },
-    ],
-  },
-  {
-    path: '/schedules',
-    label: 'Schedules',
-    icon: Calendar,
-    roles: ['admin', 'hr_manager', 'hr_payroll_manager', 'hr_payroll_user'],
-    children: [
-      { path: '/schedules', label: 'Working Schedules' },
-      { path: '/schedules/new', label: '+ New Schedule' },
-    ],
-  },
-  {
-    path: '/attendance',
-    label: 'Attendance',
-    icon: Clock,
-    roles: ['admin', 'hr_manager', 'hr_payroll_manager', 'hr_payroll_user', 'employee'],
-    children: [
-      { path: '/attendance', label: 'Attendance Log' },
-      { path: '/attendance/check-in', label: 'Check In / Out' },
-    ],
-  },
-  {
-    path: '/time-off',
-    label: 'Time Off',
-    icon: CalendarDays,
-    roles: ['admin', 'hr_manager', 'hr_payroll_manager', 'hr_payroll_user', 'employee'],
-    children: [
-      { path: '/time-off', label: 'Requests' },
-      { path: '/time-off/allocations', label: 'Allocations' },
-      { path: '/time-off/types', label: 'Leave Types' },
-    ],
-  },
-  {
-    path: '/payroll',
-    label: 'Payroll',
-    icon: DollarSign,
-    roles: ['admin', 'hr_payroll_manager', 'hr_payroll_user', 'hr_manager'],
-    children: [
-      { path: '/payroll', label: 'Payruns' },
-      { path: '/payroll/structures', label: 'Salary Structures' },
-      { path: '/payroll/rules', label: 'Salary Rules' },
-    ],
-  },
-  {
-    path: '/dashboard',
-    label: 'Dashboard',
-    icon: LayoutDashboard,
-    roles: ['admin', 'hr_manager', 'hr_payroll_manager', 'hr_payroll_user'],
-  },
-];
+import { NAV_ITEMS } from './navConfig';
+import OnboardingTour from './components/OnboardingTour';
 
 const ROLE_BADGE = {
   admin: 'bg-rose-900/40 text-rose-300 border-rose-700/50',
@@ -152,10 +69,11 @@ const SAFE_REDIRECTS = {
   default: '/dashboard',
 };
 
-function DropdownMenu({ item, isActive }) {
+function DropdownMenu({ item, isActive, role }) {
   const [open, setOpen] = useState(false);
   const ref = useRef(null);
   const location = useLocation();
+  const visibleChildren = (item.children || []).filter((child) => !child.roles || child.roles.includes(role));
 
   useEffect(() => {
     const handleClickOutside = (e) => {
@@ -209,7 +127,7 @@ function DropdownMenu({ item, isActive }) {
             transition={{ duration: 0.15 }}
             className="absolute top-full left-0 mt-2 w-48 bg-card border border-border rounded-xl shadow-xl overflow-hidden z-50 py-1"
           >
-            {item.children.map((child) => (
+            {visibleChildren.map((child) => (
               <Link
                 key={child.path}
                 to={child.path}
@@ -274,7 +192,7 @@ function NavBar() {
           <div className="hidden md:flex items-center gap-4 flex-1 ml-8">
             {visibleItems.map((item) => {
               const isActive = location.pathname.startsWith(item.path);
-              return <DropdownMenu key={item.path} item={item} isActive={isActive} />;
+              return <DropdownMenu key={item.path} item={item} isActive={isActive} role={role} />;
             })}
           </div>
 
@@ -352,7 +270,9 @@ function NavBar() {
                   <Icon className="w-3.5 h-3.5" />
                   {item.label}
                 </p>
-                {(item.children || [{ path: item.path, label: item.label }]).map((child) => (
+                {(item.children || [{ path: item.path, label: item.label }])
+                  .filter((child) => !child.roles || child.roles.includes(role))
+                  .map((child) => (
                   <Link
                     key={child.path}
                     to={child.path}
@@ -442,6 +362,7 @@ export default function App() {
             <Route path="/employees/kanban" element={<RoleRoute roles={ROLES.hr}><AnimatedRoute><EmployeeKanban /></AnimatedRoute></RoleRoute>} />
             <Route path="/employees/:id" element={<RoleRoute roles={ROLES.hr}><AnimatedRoute><EmployeeForm /></AnimatedRoute></RoleRoute>} />
             <Route path="/employees/:id/contracts" element={<RoleRoute roles={ROLES.hr}><AnimatedRoute><ContractHistory /></AnimatedRoute></RoleRoute>} />
+            <Route path="/department-requests" element={<RoleRoute roles={ROLES.hr}><AnimatedRoute><DepartmentRequests /></AnimatedRoute></RoleRoute>} />
 
             <Route path="/contracts" element={<RoleRoute roles={ROLES.hrAndPayroll}><AnimatedRoute><ContractList /></AnimatedRoute></RoleRoute>} />
             <Route path="/contracts/new" element={<RoleRoute roles={ROLES.hr}><AnimatedRoute><ContractForm /></AnimatedRoute></RoleRoute>} />
@@ -474,6 +395,7 @@ export default function App() {
       </main>
 
       {isAuthenticated && <AiCopilotWidget />}
+      {isAuthenticated && <OnboardingTour />}
     </div>
   );
 }

@@ -161,6 +161,12 @@ async function getUserProfile(userId) {
   return user;
 }
 
+async function markOnboardingSeen(userId) {
+  const user = await repo.updateUserOnboardingSeen(userId);
+  if (!user) throw new NotFoundError('User', userId);
+  return user;
+}
+
 async function listAllUsers() {
   return repo.findAllUsers();
 }
@@ -180,7 +186,14 @@ async function createDepartment(data) {
 
 // ───────────── Employees ─────────────
 async function listEmployees(filters) {
-  return repo.findAllEmployees(filters);
+  const page = Math.max(1, filters.page || 1);
+  const limit = Math.min(100, Math.max(1, filters.limit || 20));
+  const { rows, total } = await repo.findAllEmployees({
+    ...filters,
+    limit,
+    offset: (page - 1) * limit,
+  });
+  return { data: rows, total, page, limit };
 }
 
 async function getEmployee(id) {
@@ -303,8 +316,35 @@ async function createContract(data) {
   return repo.insertContract(data);
 }
 
+const RIGID_LOCKED_FIELDS = ['wage', 'start_date', 'end_date', 'structure_id'];
+
+// pg returns NUMERIC as string and DATE as a Date object, so a raw !== against the
+// zod-parsed payload (number / 'YYYY-MM-DD' string) would false-positive on every save.
+function normalizeContractFieldForCompare(field, value) {
+  if (value == null) return null;
+  if (field === 'wage' || field === 'structure_id') return Number(value);
+  if (field === 'start_date' || field === 'end_date') {
+    return value instanceof Date ? value.toISOString().slice(0, 10) : String(value).slice(0, 10);
+  }
+  return value;
+}
+
 async function updateContract(id, data) {
   const existing = await getContract(id);
+
+  if (existing.flexibility === 'rigid') {
+    const lockedFieldTouched = RIGID_LOCKED_FIELDS.find((field) => {
+      if (!Object.prototype.hasOwnProperty.call(data, field)) return false;
+      return normalizeContractFieldForCompare(field, data[field])
+        !== normalizeContractFieldForCompare(field, existing[field]);
+    });
+    if (lockedFieldTouched) {
+      throw new ValidationError(
+        `This contract is rigid — '${lockedFieldTouched}' cannot be changed. Only status transitions are allowed.`
+      );
+    }
+  }
+
   const next = { ...existing, ...data };
 
   if (next.end_date && next.end_date < next.start_date) {
@@ -330,6 +370,14 @@ async function updateContract(id, data) {
   return repo.updateContract(id, updateData);
 }
 
+/**
+ * Records which payslip a contract's one-time joining bonus was paid out on.
+ * Called by payroll from inside its own payslip-creation transaction (pass its client).
+ */
+async function markContractJoiningBonusPaid(contractId, payslipId, client) {
+  return repo.updateContract(contractId, { joining_bonus_payslip_id: payslipId }, client);
+}
+
 async function updateContractStatus(id, status) {
   if (status === 'active') return updateContract(id, { status });
   await getContract(id);
@@ -347,13 +395,19 @@ async function getScheduleWithLines(id) {
 
   const lines = await repo.findScheduleLines(id);
 
-  // Compute weekly hours server-side
-  const weeklyHours = lines.reduce((sum, line) => {
-    const start = parseTime(line.start_time);
-    const end = parseTime(line.end_time);
-    const worked = (end - start) / 3600 - (line.break_minutes / 60);
-    return sum + Math.max(0, worked);
-  }, 0);
+  // A flexible schedule has no fixed per-day lines — its weekly hours are the stored target.
+  let weeklyHours;
+  if (schedule.calendar_type === 'flexible') {
+    weeklyHours = Number(schedule.target_weekly_hours || 0);
+  } else {
+    weeklyHours = lines.reduce((sum, line) => {
+      const start = parseTime(line.start_time);
+      let end = parseTime(line.end_time);
+      if (end <= start) end += 24 * 3600; // overnight/shift line rolls into the next day
+      const worked = (end - start) / 3600 - (line.break_minutes / 60);
+      return sum + Math.max(0, worked);
+    }, 0);
+  }
 
   return { ...schedule, lines, weekly_hours: Math.round(weeklyHours * 100) / 100 };
 }
@@ -362,10 +416,13 @@ async function createSchedule(data) {
   const schedule = await repo.insertSchedule({
     name: data.name,
     calendarType: data.calendar_type,
+    gracePeriodMinutes: data.grace_period_minutes,
+    overtimeBufferMinutes: data.overtime_buffer_minutes,
+    targetWeeklyHours: data.target_weekly_hours,
   });
 
   const lines = [];
-  for (const line of data.lines) {
+  for (const line of data.lines || []) {
     const inserted = await repo.insertScheduleLine({
       scheduleId: schedule.id,
       dayOfWeek: line.day_of_week,
@@ -380,7 +437,14 @@ async function createSchedule(data) {
 }
 
 async function updateSchedule(id, data) {
-  const schedule = await repo.updateSchedule(id, data);
+  const schedule = await repo.updateSchedule(id, {
+    name: data.name,
+    calendarType: data.calendar_type,
+    lines: data.lines,
+    gracePeriodMinutes: data.grace_period_minutes,
+    overtimeBufferMinutes: data.overtime_buffer_minutes,
+    targetWeeklyHours: data.target_weekly_hours,
+  });
   if (!schedule) throw new NotFoundError('Schedule', id);
   return getScheduleWithLines(id);
 }
@@ -389,6 +453,62 @@ async function archiveSchedule(id) {
   const schedule = await repo.archiveSchedule(id);
   if (!schedule) throw new NotFoundError('Active schedule', id);
   return schedule;
+}
+
+// ───────────── Department Change Requests ─────────────
+async function requestDepartmentChange(actorUserId, employeeId, departmentId) {
+  const employee = await getEmployee(employeeId);
+  if (employee.department_id === departmentId) {
+    throw new ValidationError('Employee is already in that department');
+  }
+  return repo.insertDepartmentChangeRequest({
+    employeeId,
+    currentDepartmentId: employee.department_id,
+    requestedDepartmentId: departmentId,
+    requestedBy: actorUserId,
+  });
+}
+
+async function listDepartmentChangeRequests(filters) {
+  return repo.findDepartmentChangeRequests(filters);
+}
+
+async function reviewDepartmentChangeRequest(actorUserId, requestId, approve, note) {
+  const request = await repo.findDepartmentChangeRequestById(requestId);
+  if (!request) throw new NotFoundError('DepartmentChangeRequest', requestId);
+  if (request.status !== 'draft') {
+    throw new ValidationError(`Request already ${request.status}`);
+  }
+
+  if (!approve) {
+    return repo.reviewDepartmentChangeRequest(requestId, 'rejected', actorUserId, note);
+  }
+
+  const client = await db.getClient();
+  try {
+    await client.query('BEGIN');
+    const reviewed = await repo.reviewDepartmentChangeRequest(requestId, 'approved', actorUserId, note, client);
+    if (!reviewed) throw new ValidationError('Request already reviewed');
+    await repo.applyEmployeeDepartment(request.employee_id, request.requested_department_id, client);
+    await client.query(
+      `INSERT INTO audit_logs (user_id, action, entity, entity_id, before_json, after_json, note)
+       VALUES ($1, 'approve', 'department_change_requests', $2, $3, $4, $5)`,
+      [
+        actorUserId,
+        requestId,
+        JSON.stringify({ department_id: request.current_department_id }),
+        JSON.stringify({ department_id: request.requested_department_id }),
+        note || null,
+      ]
+    );
+    await client.query('COMMIT');
+    return reviewed;
+  } catch (error) {
+    await client.query('ROLLBACK');
+    throw error;
+  } finally {
+    client.release();
+  }
 }
 
 /**
@@ -407,6 +527,7 @@ module.exports = {
   deactivateUser,
   reactivateUser,
   getUserProfile,
+  markOnboardingSeen,
   listAllUsers,
   listAllRoles,
   listDepartments,
@@ -423,9 +544,13 @@ module.exports = {
   createContract,
   updateContract,
   updateContractStatus,
+  markContractJoiningBonusPaid,
   listSchedules,
   getScheduleWithLines,
   createSchedule,
   updateSchedule,
   archiveSchedule,
+  requestDepartmentChange,
+  listDepartmentChangeRequests,
+  reviewDepartmentChangeRequest,
 };

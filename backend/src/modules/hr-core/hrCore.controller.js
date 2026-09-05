@@ -8,6 +8,8 @@ const {
   createEmployeeSchema,
   provisionEmployeeSchema,
   updateEmployeeSchema,
+  departmentChangeRequestSchema,
+  reviewDepartmentChangeRequestSchema,
   createContractSchema,
   updateContractSchema,
   updateContractStatusSchema,
@@ -57,6 +59,11 @@ const getMe = asyncHandler(async (req, res) => {
   res.json(user);
 });
 
+const markOnboardingSeen = asyncHandler(async (req, res) => {
+  const user = await service.markOnboardingSeen(req.user.id);
+  res.json(user);
+});
+
 const listUsers = asyncHandler(async (_req, res) => {
   const users = await service.listAllUsers();
   res.json(users);
@@ -85,9 +92,12 @@ const listEmployees = asyncHandler(async (req, res) => {
     department_id: req.query.department_id ? parseInt(req.query.department_id, 10) : undefined,
     status: req.query.status,
     employee_type: req.query.employee_type,
+    search: req.query.search || undefined,
+    page: req.query.page ? parseInt(req.query.page, 10) : undefined,
+    limit: req.query.limit ? parseInt(req.query.limit, 10) : undefined,
   };
-  const employees = await service.listEmployees(filters);
-  res.json(employees);
+  const result = await service.listEmployees(filters);
+  res.json(result);
 });
 
 const getEmployee = asyncHandler(async (req, res) => {
@@ -111,6 +121,47 @@ const updateEmployee = asyncHandler(async (req, res) => {
   const data = updateEmployeeSchema.parse(req.body);
   const employee = await service.updateEmployee(parseInt(req.params.id, 10), data);
   res.json(employee);
+});
+
+// ───────────── Department Change Requests ─────────────
+const requestDepartmentChange = asyncHandler(async (req, res) => {
+  const data = departmentChangeRequestSchema.parse(req.body);
+  const request = await service.requestDepartmentChange(
+    req.user.id,
+    parseInt(req.params.id, 10),
+    data.department_id
+  );
+  res.status(201).json(request);
+});
+
+const listDepartmentChangeRequests = asyncHandler(async (req, res) => {
+  const requests = await service.listDepartmentChangeRequests({
+    status: req.query.status,
+    employeeId: req.query.employee_id ? parseInt(req.query.employee_id, 10) : undefined,
+  });
+  res.json(requests);
+});
+
+const approveDepartmentChangeRequest = asyncHandler(async (req, res) => {
+  const data = reviewDepartmentChangeRequestSchema.parse(req.body || {});
+  const request = await service.reviewDepartmentChangeRequest(
+    req.user.id,
+    parseInt(req.params.id, 10),
+    true,
+    data.note
+  );
+  res.json(request);
+});
+
+const rejectDepartmentChangeRequest = asyncHandler(async (req, res) => {
+  const data = reviewDepartmentChangeRequestSchema.parse(req.body || {});
+  const request = await service.reviewDepartmentChangeRequest(
+    req.user.id,
+    parseInt(req.params.id, 10),
+    false,
+    data.note
+  );
+  res.json(request);
 });
 
 // ───────────── Contracts ─────────────
@@ -183,6 +234,7 @@ module.exports = {
   deactivateUser,
   reactivateUser,
   getMe,
+  markOnboardingSeen,
   listUsers,
   listRoles,
   listDepartments,
@@ -192,6 +244,10 @@ module.exports = {
   createEmployee,
   provisionEmployee,
   updateEmployee,
+  requestDepartmentChange,
+  listDepartmentChangeRequests,
+  approveDepartmentChangeRequest,
+  rejectDepartmentChangeRequest,
   listAllContracts,
   getContract,
   listContracts,
