@@ -41,11 +41,11 @@ React SPA → Express API (routes→controllers→services→repositories) → P
 | Dev 3 | Payroll Engine | `backend/src/modules/payroll/` + `frontend/src/modules/payroll/` |
 | Dev 4 | Dashboard + AI | `backend/src/modules/dashboard/` + `frontend/src/modules/dashboard/` + `ai-service/` |
 
-## Current Status (Prototype Ready)
-All team branches (`amruta` and `main`) have been successfully merged. The application is fully functional:
+## Current Status (Production Ready)
+All team branches (`clean-version`, `feat/attendance-insights-calendar`, and `main`) have been successfully merged. The application is fully functional:
 - **Dev 1 (HR Core):** Employee management, Contracts, and Scheduling modules are active.
-- **Dev 2 (Time Ops):** Late/Overtime tracking, Check-In widget, and Time-off allocations/requests with approval workflows are merged and active.
-- **Dev 3 (Payroll):** Dynamic rule engine, Payslip generation with corporate PDF templates, and full backend test coverage.
+- **Dev 2 (Time Ops):** Late (+15m) mark flagging, overtime analytics, multi-shift total hours summation, 3-late-mark 0.5-day leave balance auto-deductions, hover quick-add Team Leave Calendar, and time-off allocation/request approval workflows.
+- **Dev 3 (Payroll):** Dynamic rule engine, Payslip generation with corporate PDF templates, working-day attendance/leave proration, and full backend test coverage.
 - **Dev 4 (Dashboard + AI):** FastAPI anomaly detection and interactive payroll charts.
 
 ## Documentation
