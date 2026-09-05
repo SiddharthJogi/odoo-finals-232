@@ -1,5 +1,5 @@
 const { ZodError } = require('zod');
-const { PayrollError, ValidationError, AuthenticationError, ForbiddenError } = require('../shared/errors');
+const { PayrollError, ValidationError, AuthenticationError, ForbiddenError, NotFoundError } = require('../shared/errors');
 
 /**
  * Centralized Express error handler.
@@ -26,6 +26,9 @@ function errorHandler(err, _req, res, _next) {
   }
   if (err instanceof ForbiddenError) {
     return res.status(403).json({ error: err.message });
+  }
+  if (err instanceof NotFoundError) {
+    return res.status(404).json({ error: err.message });
   }
   if (err instanceof PayrollError) {
     return res.status(422).json({ error: err.message, code: 'PAYROLL_ERROR' });

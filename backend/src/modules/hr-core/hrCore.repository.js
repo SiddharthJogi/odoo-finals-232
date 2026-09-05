@@ -330,6 +330,53 @@ async function insertScheduleLine({ scheduleId, dayOfWeek, startTime, endTime, b
   return rows[0];
 }
 
+async function updateSchedule(id, { name, calendarType, lines }) {
+  const client = await db.getClient();
+  try {
+    await client.query('BEGIN');
+    const { rows } = await client.query(
+      `UPDATE working_schedules
+       SET name = COALESCE($1, name), calendar_type = COALESCE($2, calendar_type)
+       WHERE id = $3 AND status = 'active'
+       RETURNING *`,
+      [name || null, calendarType || null, id]
+    );
+    if (!rows[0]) {
+      await client.query('ROLLBACK');
+      return null;
+    }
+
+    if (lines) {
+      await client.query('DELETE FROM schedule_lines WHERE schedule_id = $1', [id]);
+      for (const line of lines) {
+        await client.query(
+          `INSERT INTO schedule_lines (schedule_id, day_of_week, start_time, end_time, break_minutes)
+           VALUES ($1, $2, $3, $4, $5)`,
+          [id, line.day_of_week, line.start_time, line.end_time, line.break_minutes]
+        );
+      }
+    }
+
+    await client.query('COMMIT');
+    return rows[0];
+  } catch (error) {
+    await client.query('ROLLBACK');
+    throw error;
+  } finally {
+    client.release();
+  }
+}
+
+async function archiveSchedule(id) {
+  const { rows } = await db.query(
+    `UPDATE working_schedules SET status = 'archived'
+     WHERE id = $1 AND status = 'active'
+     RETURNING *`,
+    [id]
+  );
+  return rows[0] || null;
+}
+
 module.exports = {
   findAllRoles,
   findRoleById,
@@ -363,4 +410,6 @@ module.exports = {
   insertSchedule,
   findScheduleLines,
   insertScheduleLine,
+  updateSchedule,
+  archiveSchedule,
 };

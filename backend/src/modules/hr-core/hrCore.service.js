@@ -379,6 +379,18 @@ async function createSchedule(data) {
   return { ...schedule, lines };
 }
 
+async function updateSchedule(id, data) {
+  const schedule = await repo.updateSchedule(id, data);
+  if (!schedule) throw new NotFoundError('Schedule', id);
+  return getScheduleWithLines(id);
+}
+
+async function archiveSchedule(id) {
+  const schedule = await repo.archiveSchedule(id);
+  if (!schedule) throw new NotFoundError('Active schedule', id);
+  return schedule;
+}
+
 /**
  * Parses a TIME string (HH:MM or HH:MM:SS) into seconds since midnight.
  */
@@ -414,4 +426,6 @@ module.exports = {
   listSchedules,
   getScheduleWithLines,
   createSchedule,
+  updateSchedule,
+  archiveSchedule,
 };
