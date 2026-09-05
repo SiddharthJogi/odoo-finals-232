@@ -71,7 +71,7 @@ export default function AttendanceList() {
       setApprovedLeaveToday(new Set(leaveRes.data.filter((request) => (
         request.status === 'approved' && request.start_date <= todayString && request.end_date >= todayString
       )).map((request) => request.employee_id)).size);
-      setEmployeeCount(role === 'employee' ? 1 : employeeRes.data.length);
+      setEmployeeCount(role === 'employee' ? 1 : (employeeRes.data.pagination?.total || employeeRes.data.length || 0));
     } catch (err) {
       console.error('Failed to fetch attendances', err);
     } finally {
@@ -82,6 +82,11 @@ export default function AttendanceList() {
   const presentToday = new Set(todayAttendances.map((attendance) => attendance.employee_id)).size;
   const totalHoursLogged = monthAttendances.reduce((total, attendance) => total + Number(attendance.worked_hours || 0), 0);
   const presenceRate = employeeCount > 0 ? Math.min(100, Math.round((presentToday / employeeCount) * 100)) : 0;
+  const todayStatusCounts = todayAttendances.reduce((counts, attendance) => {
+    const status = attendance.status || 'unknown';
+    counts[status] = (counts[status] || 0) + 1;
+    return counts;
+  }, {});
 
   const handleOpenEdit = (att) => {
     setEditItem(att);
@@ -159,6 +164,17 @@ export default function AttendanceList() {
           </div>
           <div className="h-2.5 bg-muted rounded-full overflow-hidden" aria-label={`${presenceRate}% of employees present today`}>
             <div className="h-full bg-emerald-500 rounded-full transition-all duration-500" style={{ width: `${presenceRate}%` }} />
+          </div>
+          <div className="flex flex-wrap gap-2 mt-3">
+            {[
+              { label: 'Completed', value: todayStatusCounts.done || 0, tone: 'bg-emerald-50 text-emerald-700' },
+              { label: 'In progress', value: todayStatusCounts.in_progress || 0, tone: 'bg-amber-50 text-amber-700' },
+              { label: 'Flagged', value: todayStatusCounts.flagged || 0, tone: 'bg-rose-50 text-rose-700' },
+            ].map((item) => (
+              <span key={item.label} className={`rounded-full px-2.5 py-1 text-[11px] font-bold ${item.tone}`}>
+                {item.label}: {item.value}
+              </span>
+            ))}
           </div>
         </div>
       </section>

@@ -63,7 +63,31 @@ async function insertUser({ email, passwordHash, roleId, employeeId }) {
   return rows[0];
 }
 
-async function findAllUsers() {
+async function findAllUsers(filters = {}) {
+  const where = ['1=1'];
+  const params = [];
+  let idx = 1;
+
+  if (filters.search) {
+    where.push(`(u.email ILIKE $${idx} OR e.name ILIKE $${idx})`);
+    params.push(`%${filters.search}%`);
+    idx++;
+  }
+  if (filters.status) {
+    where.push(`u.is_active = $${idx++}`);
+    params.push(filters.status === 'active');
+  }
+
+  const whereSql = where.join(' AND ');
+  const countResult = await db.query(
+    `SELECT COUNT(*)::int AS total
+     FROM users u
+     LEFT JOIN employees e ON u.employee_id = e.id
+     WHERE ${whereSql}`,
+    params
+  );
+  const total = countResult.rows[0].total;
+  const dataParams = [...params, filters.limit, filters.offset];
   const { rows } = await db.query(
     `SELECT u.id, u.email, u.is_active, u.created_at, u.employee_id,
             r.name AS role, r.id AS role_id,
@@ -71,9 +95,12 @@ async function findAllUsers() {
      FROM users u
      JOIN roles r ON u.role_id = r.id
      LEFT JOIN employees e ON u.employee_id = e.id
-     ORDER BY u.id`
+     WHERE ${whereSql}
+     ORDER BY u.id
+     LIMIT $${idx} OFFSET $${idx + 1}`,
+    dataParams
   );
-  return rows;
+  return { rows, total };
 }
 
 async function updateUserRole(userId, roleId) {
@@ -151,6 +178,11 @@ async function findAllEmployees(filters = {}) {
     params.push(`%${filters.search}%`);
     idx++;
   }
+  if (filters.assignment === 'assigned') {
+    where.push('e.department_id IS NOT NULL');
+  } else if (filters.assignment === 'unassigned') {
+    where.push('e.department_id IS NULL');
+  }
 
   const whereSql = where.join(' AND ');
   const countResult = await db.query(
@@ -159,14 +191,15 @@ async function findAllEmployees(filters = {}) {
   );
   const total = countResult.rows[0].total;
 
-  const dataParams = [...params, filters.limit, filters.offset];
+  const paginationSql = filters.all ? '' : `LIMIT $${idx} OFFSET $${idx + 1}`;
+  const dataParams = filters.all ? params : [...params, filters.limit, filters.offset];
   const { rows } = await db.query(
     `SELECT e.*, d.name AS department_name
      FROM employees e
      LEFT JOIN departments d ON d.id = e.department_id
      WHERE ${whereSql}
-     ORDER BY e.id
-     LIMIT $${idx} OFFSET $${idx + 1}`,
+     ORDER BY e.id DESC
+     ${paginationSql}`,
     dataParams
   );
   return { rows, total };
@@ -183,8 +216,8 @@ async function insertEmployee(data) {
      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
      RETURNING *`,
     [data.name, data.email, data.department_id || null, data.manager_id || null,
-     data.job_position || null, data.schedule_id || null, data.employee_type,
-     data.bank_account || null, data.status]
+    data.job_position || null, data.schedule_id || null, data.employee_type,
+    data.bank_account || null, data.status]
   );
   return rows[0];
 }
@@ -195,8 +228,8 @@ async function insertEmployeeAndUser(client, { employee, passwordHash, roleId })
      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
      RETURNING *`,
     [employee.name, employee.email, employee.department_id || null, employee.manager_id || null,
-     employee.job_position || null, employee.schedule_id || null, employee.employee_type,
-     employee.bank_account || null, employee.status]
+    employee.job_position || null, employee.schedule_id || null, employee.employee_type,
+    employee.bank_account || null, employee.status]
   );
   const createdEmployee = employeeResult.rows[0];
   const userResult = await client.query(
@@ -228,11 +261,40 @@ async function updateEmployee(id, data) {
 }
 
 // ───────────── Contracts ─────────────
-async function findAllContracts() {
-  const { rows } = await db.query(
-    'SELECT c.*, e.name as employee_name FROM contracts c JOIN employees e ON c.employee_id = e.id ORDER BY c.start_date DESC'
+async function findAllContracts(filters = {}) {
+  const where = ['1=1'];
+  const params = [];
+  let idx = 1;
+
+  if (filters.status) {
+    where.push(`c.status = $${idx++}`);
+    params.push(filters.status);
+  }
+  if (filters.search) {
+    where.push(`(e.name ILIKE $${idx} OR e.email ILIKE $${idx})`);
+    params.push(`%${filters.search}%`);
+    idx++;
+  }
+
+  const whereSql = where.join(' AND ');
+  const countResult = await db.query(
+    `SELECT COUNT(*)::int AS total
+     FROM contracts c
+     JOIN employees e ON c.employee_id = e.id
+     WHERE ${whereSql}`,
+    params
   );
-  return rows;
+  const total = countResult.rows[0].total;
+  const { rows } = await db.query(
+    `SELECT c.*, e.name AS employee_name
+     FROM contracts c
+     JOIN employees e ON c.employee_id = e.id
+     WHERE ${whereSql}
+     ORDER BY c.start_date DESC, c.id DESC
+     LIMIT $${idx} OFFSET $${idx + 1}`,
+    [...params, filters.limit, filters.offset]
+  );
+  return { rows, total };
 }
 
 async function findContractById(id) {
@@ -289,8 +351,8 @@ async function insertContract(data) {
      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
      RETURNING *`,
     [data.employee_id, data.department_id || null, data.job_position || null,
-     data.wage, data.start_date, data.end_date || null, data.structure_id,
-     data.schedule_id || null, data.status]
+    data.wage, data.start_date, data.end_date || null, data.structure_id,
+    data.schedule_id || null, data.status]
   );
   return rows[0];
 }

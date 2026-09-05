@@ -159,8 +159,8 @@ async function getUserProfile(userId) {
   return user;
 }
 
-async function listAllUsers() {
-  return repo.findAllUsers();
+async function listAllUsers(filters) {
+  return repo.findAllUsers(filters);
 }
 
 async function listAllRoles() {
@@ -259,8 +259,8 @@ async function updateEmployee(id, data) {
 }
 
 // ───────────── Contracts ─────────────
-async function listAllContracts() {
-  return repo.findAllContracts();
+async function listAllContracts(filters) {
+  return repo.findAllContracts(filters);
 }
 
 async function getContract(id) {

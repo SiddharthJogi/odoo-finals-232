@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import client from '../../api/client';
+import { ChevronLeft, ChevronRight, Search } from 'lucide-react';
 
 const ROLE_COLORS = {
   admin: 'bg-red-100 text-red-800',
@@ -13,6 +14,10 @@ export default function UserManagement() {
   const [users, setUsers] = useState([]);
   const [roles, setRoles] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [search, setSearch] = useState('');
+  const [statusFilter, setStatusFilter] = useState('');
+  const [page, setPage] = useState(1);
+  const [pagination, setPagination] = useState({ page: 1, limit: 6, total: 0, totalPages: 0 });
   const [roleChanging, setRoleChanging] = useState(null); // userId being changed
   const [revoking, setRevoking] = useState(null);
   const [reactivating, setReactivating] = useState(null);
@@ -32,11 +37,18 @@ export default function UserManagement() {
 
   const fetchUsers = useCallback(() => {
     setLoading(true);
-    client.get('/users')
-      .then(({ data }) => setUsers(data))
+    const params = new URLSearchParams({ page: String(page), limit: '6' });
+    if (search.trim()) params.set('search', search.trim());
+    if (statusFilter) params.set('status', statusFilter);
+
+    client.get(`/users?${params.toString()}`)
+      .then(({ data }) => {
+        setUsers(data.users || []);
+        setPagination(data.pagination || { page, limit: 6, total: 0, totalPages: 0 });
+      })
       .catch(() => showToast('Failed to load users', 'error'))
       .finally(() => setLoading(false));
-  }, []);
+  }, [page, search, statusFilter]);
 
   useEffect(() => {
     fetchUsers();
@@ -111,6 +123,28 @@ export default function UserManagement() {
           <h1 className="text-2xl font-bold text-gray-900">User Management</h1>
           <p className="text-sm text-gray-500 mt-1">View accounts and assign roles to employees</p>
         </div>
+      </div>
+
+      <div className="flex flex-wrap items-center gap-3 bg-white border border-gray-200 rounded-xl shadow-sm p-3 mb-5">
+        <div className="relative flex-1 min-w-[220px]">
+          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400" />
+          <input
+            type="text"
+            placeholder="Search by email or employee..."
+            value={search}
+            onChange={(event) => { setSearch(event.target.value); setPage(1); }}
+            className="w-full text-xs bg-gray-50 border border-gray-200 rounded-lg pl-8 pr-3 py-1.5 text-gray-700 focus:ring-2 focus:ring-blue-500 focus:outline-none"
+          />
+        </div>
+        <select
+          value={statusFilter}
+          onChange={(event) => { setStatusFilter(event.target.value); setPage(1); }}
+          className="text-xs bg-gray-50 border border-gray-200 rounded-lg px-2.5 py-1.5 text-gray-700 focus:ring-2 focus:ring-blue-500 focus:outline-none"
+        >
+          <option value="">All Statuses</option>
+          <option value="active">Active</option>
+          <option value="inactive">Inactive</option>
+        </select>
       </div>
 
       {/* Roles legend */}
@@ -199,6 +233,30 @@ export default function UserManagement() {
           </table>
         )}
       </div>
+
+      {!loading && pagination.totalPages > 0 && (
+        <div className="flex items-center justify-between mt-4 text-xs text-gray-500">
+          <span>Page {pagination.page} of {pagination.totalPages} · {pagination.total} users</span>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setPage((current) => Math.max(current - 1, 1))}
+              disabled={page === 1}
+              className="flex items-center gap-1 px-3 py-1.5 border border-gray-200 rounded-lg font-semibold disabled:opacity-40 disabled:cursor-not-allowed hover:bg-gray-50"
+            >
+              <ChevronLeft className="w-3.5 h-3.5" /> Previous
+            </button>
+            <button
+              type="button"
+              onClick={() => setPage((current) => Math.min(current + 1, pagination.totalPages))}
+              disabled={page >= pagination.totalPages}
+              className="flex items-center gap-1 px-3 py-1.5 border border-gray-200 rounded-lg font-semibold disabled:opacity-40 disabled:cursor-not-allowed hover:bg-gray-50"
+            >
+              Next <ChevronRight className="w-3.5 h-3.5" />
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

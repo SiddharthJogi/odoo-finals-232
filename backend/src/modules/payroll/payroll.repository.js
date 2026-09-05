@@ -11,19 +11,23 @@ async function findStructureById(id) {
   return rows[0] || null;
 }
 
-async function insertStructure({ name, status }) {
+async function insertStructure({ name, code, description, pay_frequency, currency, status }) {
   const { rows } = await db.query(
-    'INSERT INTO salary_structures (name, status) VALUES ($1, $2) RETURNING *',
-    [name, status || 'active']
+    'INSERT INTO salary_structures (name, code, description, pay_frequency, currency, status) VALUES ($1, $2, $3, $4, $5, $6) RETURNING *',
+    [name, code, description || null, pay_frequency || 'monthly', currency || 'INR', status || 'active']
   );
   return rows[0];
 }
 
-async function updateStructure(id, { name, status }) {
+async function updateStructure(id, { name, code, description, pay_frequency, currency, status }) {
   const fields = [];
   const values = [];
   let paramIdx = 1;
   if (name !== undefined) { fields.push(`name = $${paramIdx++}`); values.push(name); }
+  if (code !== undefined) { fields.push(`code = $${paramIdx++}`); values.push(code); }
+  if (description !== undefined) { fields.push(`description = $${paramIdx++}`); values.push(description); }
+  if (pay_frequency !== undefined) { fields.push(`pay_frequency = $${paramIdx++}`); values.push(pay_frequency); }
+  if (currency !== undefined) { fields.push(`currency = $${paramIdx++}`); values.push(currency); }
   if (status !== undefined) { fields.push(`status = $${paramIdx++}`); values.push(status); }
 
   if (fields.length === 0) return findStructureById(id);
@@ -45,6 +49,16 @@ async function findRulesByStructure(structureId) {
   return rows;
 }
 
+async function findPerformanceRulesByStructure(structureId) {
+  const { rows } = await db.query(
+    `SELECT * FROM salary_rules
+     WHERE structure_id = $1 AND performance_based IS NOT NULL
+     ORDER BY sequence`,
+    [structureId]
+  );
+  return rows;
+}
+
 async function findRuleById(id) {
   const { rows } = await db.query('SELECT * FROM salary_rules WHERE id = $1', [id]);
   return rows[0] || null;
@@ -52,11 +66,12 @@ async function findRuleById(id) {
 
 async function insertRule(data) {
   const { rows } = await db.query(
-    `INSERT INTO salary_rules (structure_id, name, code, category, sequence, calc_method, amount, base_code, formula_text)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+    `INSERT INTO salary_rules (structure_id, name, code, category, sequence, calc_method, amount, base_code, formula_text, performance_based)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
      RETURNING *`,
     [data.structure_id, data.name, data.code, data.category, data.sequence,
-     data.calc_method, data.amount || null, data.base_code || null, data.formula_text || null]
+     data.calc_method, data.amount || null, data.base_code || null, data.formula_text || null,
+     data.performance_based ?? null]
   );
   return rows[0];
 }
@@ -102,7 +117,7 @@ async function insertPayrun(data) {
      VALUES ($1, $2, $3, $4, $5, 'draft', $6)
      RETURNING *`,
     [data.name, data.structure_id, data.period_start, data.period_end,
-     data.employee_type_filter || null, data.created_by]
+    data.employee_type_filter || null, data.created_by]
   );
   return rows[0];
 }
@@ -145,7 +160,7 @@ async function insertPayslip(data, client) {
      VALUES ($1, $2, $3, $4, $5, $6, 'draft', $7, $8)
      RETURNING *`,
     [data.payrun_id, data.employee_id, data.contract_id, data.worked_days,
-     data.gross_total, data.net_total, data.has_warning || false, data.warning_reason || null]
+    data.gross_total, data.net_total, data.has_warning || false, data.warning_reason || null]
   );
   return rows[0];
 }
@@ -214,7 +229,7 @@ async function updatePayslipCalculation(id, data, client) {
      WHERE id = $6
      RETURNING *`,
     [data.worked_days, data.gross_total, data.net_total, data.has_warning || false,
-     data.warning_reason || null, id]
+    data.warning_reason || null, id]
   );
   return rows[0] || null;
 }
@@ -240,7 +255,7 @@ async function insertPayslipLine(data, client) {
      VALUES ($1, $2, $3, $4, $5, $6)
      RETURNING *`,
     [data.payslip_id, data.rule_id, data.label, data.category, data.sequence,
-     Math.round(data.value * 100) / 100]
+    Math.round(data.value * 100) / 100]
   );
   return rows[0];
 }
@@ -283,6 +298,7 @@ module.exports = {
   insertStructure,
   updateStructure,
   findRulesByStructure,
+  findPerformanceRulesByStructure,
   findRuleById,
   insertRule,
   updateRule,

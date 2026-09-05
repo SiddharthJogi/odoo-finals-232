@@ -57,7 +57,9 @@ async function seed() {
 
   // ─────────── Salary Structure + Rules ───────────
   const { rows: structRows } = await db.query(
-    `INSERT INTO salary_structures (name) VALUES ('Standard Employee Structure') RETURNING id`
+    `INSERT INTO salary_structures (name, code, description, pay_frequency, currency)
+     VALUES ('Standard Employee Structure', 'STD-INR-2026', 'Standard monthly structure for Indian employees', 'monthly', 'INR')
+     RETURNING id`
   );
   const structureId = structRows[0].id;
 

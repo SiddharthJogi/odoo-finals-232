@@ -57,9 +57,24 @@ const getMe = asyncHandler(async (req, res) => {
   res.json(user);
 });
 
-const listUsers = asyncHandler(async (_req, res) => {
-  const users = await service.listAllUsers();
-  res.json(users);
+const listUsers = asyncHandler(async (req, res) => {
+  const page = Math.max(parseInt(req.query.page, 10) || 1, 1);
+  const limit = 6;
+  const result = await service.listAllUsers({
+    search: req.query.search?.trim() || undefined,
+    status: req.query.status || undefined,
+    limit,
+    offset: (page - 1) * limit,
+  });
+  res.json({
+    users: result.rows,
+    pagination: {
+      page,
+      limit,
+      total: result.total,
+      totalPages: Math.ceil(result.total / limit),
+    },
+  });
 });
 
 const listRoles = asyncHandler(async (_req, res) => {
@@ -82,16 +97,22 @@ const createDepartment = asyncHandler(async (req, res) => {
 // ───────────── Employees ─────────────
 const listEmployees = asyncHandler(async (req, res) => {
   const page = Math.max(parseInt(req.query.page, 10) || 1, 1);
-  const limit = 8;
+  const all = req.query.all === 'true';
+  const limit = 6;
   const filters = {
     department_id: req.query.department_id ? parseInt(req.query.department_id, 10) : undefined,
     status: req.query.status,
     employee_type: req.query.employee_type,
     search: req.query.search?.trim() || undefined,
+    assignment: req.query.assignment,
+    all,
     limit,
     offset: (page - 1) * limit,
   };
   const result = await service.listEmployees(filters);
+  if (all) {
+    return res.json({ employees: result.rows, pagination: { page: 1, limit: result.total, total: result.total, totalPages: 1 } });
+  }
   res.json({
     employees: result.rows,
     pagination: {
@@ -128,8 +149,23 @@ const updateEmployee = asyncHandler(async (req, res) => {
 
 // ───────────── Contracts ─────────────
 const listAllContracts = asyncHandler(async (req, res) => {
-  const contracts = await service.listAllContracts();
-  res.json(contracts);
+  const page = Math.max(parseInt(req.query.page, 10) || 1, 1);
+  const limit = 6;
+  const result = await service.listAllContracts({
+    status: req.query.status || undefined,
+    search: req.query.search?.trim() || undefined,
+    limit,
+    offset: (page - 1) * limit,
+  });
+  res.json({
+    contracts: result.rows,
+    pagination: {
+      page,
+      limit,
+      total: result.total,
+      totalPages: Math.ceil(result.total / limit),
+    },
+  });
 });
 
 const getContract = asyncHandler(async (req, res) => {

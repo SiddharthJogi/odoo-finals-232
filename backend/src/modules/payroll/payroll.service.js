@@ -3,6 +3,15 @@ const { computePayslip } = require('./ruleEngine');
 const hrCoreService = require('../hr-core/hrCore.service');
 const db = require('../../db');
 const { PayrollError, ValidationError, NotFoundError } = require('../../shared/errors');
+const performanceRepo = require('../performance/performance.repository');
+
+async function getPerformanceBonus(employeeId, periodStart, periodEnd, wage) {
+  const review = await performanceRepo.findApprovedPerformancePay(employeeId, periodStart, periodEnd);
+  if (!review) return null;
+  const amount = Number(review.performance_pay || 0);
+  if (amount <= 0) return null;
+  return { review, amount, label: `Performance Bonus (${review.total_points} points)`, wage };
+}
 
 async function getPayrollInputs(employeeId, periodStart, periodEnd) {
   const raw = await repo.findPayrollInputs(employeeId, periodStart, periodEnd);
@@ -62,6 +71,10 @@ async function updateStructure(id, data) {
 // ───────────── Salary Rules ─────────────
 async function listRulesByStructure(structureId) {
   return repo.findRulesByStructure(structureId);
+}
+
+async function listPerformanceRulesByStructure(structureId) {
+  return repo.findPerformanceRulesByStructure(structureId);
 }
 
 async function createRule(data) {
@@ -159,6 +172,9 @@ async function createPayrun(data, createdBy) {
         periodStart: data.period_start,
         periodEnd: data.period_end,
       });
+      const performanceBonus = await getPerformanceBonus(empId, data.period_start, data.period_end, contract.wage);
+      const grossTotal = result.gross_total + (performanceBonus?.amount || 0);
+      const netTotal = result.net_total + (performanceBonus?.amount || 0);
 
       // Insert payslip
       const payslip = await repo.insertPayslip({
@@ -166,8 +182,8 @@ async function createPayrun(data, createdBy) {
         employee_id: empId,
         contract_id: contract.id,
         worked_days: result.payrollInputs.worked_days,
-        gross_total: result.gross_total,
-        net_total: result.net_total,
+        gross_total: grossTotal,
+        net_total: netTotal,
         has_warning: hasWarning,
         warning_reason: warningReason,
       }, client);
@@ -182,6 +198,10 @@ async function createPayrun(data, createdBy) {
           sequence: line.sequence,
           value: line.value,
         }, client);
+      }
+      if (performanceBonus) {
+        await performanceRepo.insertAdjustment({ payslip_id: payslip.id, employee_id: empId, review_id: performanceBonus.review.id, label: performanceBonus.label, amount: performanceBonus.amount }, client);
+        await repo.insertPayslipLine({ payslip_id: payslip.id, rule_id: result.lines[0].rule_id, label: performanceBonus.label, category: 'allowance', sequence: 99, value: performanceBonus.amount }, client);
       }
     }
 
@@ -266,10 +286,13 @@ async function transitionPayrun(payrunId, targetStatus) {
           periodStart: payrun.period_start,
           periodEnd: payrun.period_end,
         });
+        const performanceBonus = await getPerformanceBonus(payslip.employee_id, payrun.period_start, payrun.period_end, contract.wage);
+        const grossTotal = result.gross_total + (performanceBonus?.amount || 0);
+        const netTotal = result.net_total + (performanceBonus?.amount || 0);
         await repo.updatePayslipCalculation(payslip.id, {
           worked_days: result.payrollInputs.worked_days,
-          gross_total: result.gross_total,
-          net_total: result.net_total,
+          gross_total: grossTotal,
+          net_total: netTotal,
         }, client);
         await repo.deletePayslipLines(payslip.id, client);
         for (const line of result.lines) {
@@ -281,6 +304,10 @@ async function transitionPayrun(payrunId, targetStatus) {
             sequence: line.sequence,
             value: line.value,
           }, client);
+        }
+        if (performanceBonus) {
+          await performanceRepo.insertAdjustment({ payslip_id: payslip.id, employee_id: payslip.employee_id, review_id: performanceBonus.review.id, label: performanceBonus.label, amount: performanceBonus.amount }, client);
+          await repo.insertPayslipLine({ payslip_id: payslip.id, rule_id: result.lines[0].rule_id, label: performanceBonus.label, category: 'allowance', sequence: 99, value: performanceBonus.amount }, client);
         }
       }
     }
@@ -367,10 +394,10 @@ async function sendPayslips(payrunId, userId) {
   for (const p of payslips) {
     try {
       if (!p.employee_email) continue;
-      
+
       const fullPayslip = await getPayslipWithLines(p.id);
       const pdfBuffer = await generatePayslipPdfBuffer(fullPayslip);
-      
+
       await mailer.sendPayslipEmail({
         email: p.employee_email,
         name: p.employee_name || 'Employee',
@@ -402,6 +429,7 @@ module.exports = {
   createStructure,
   updateStructure,
   listRulesByStructure,
+  listPerformanceRulesByStructure,
   createRule,
   updateRule,
   deleteRule,

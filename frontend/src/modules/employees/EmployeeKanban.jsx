@@ -1,15 +1,12 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import client from '../../api/client';
-import { Users, List, UserCircle, Briefcase } from 'lucide-react';
+import { Users, List, Briefcase, RefreshCw, UserCheck, UserX } from 'lucide-react';
 
-const DEPT_COLORS = [
-  'from-blue-500 to-indigo-600',
-  'from-emerald-500 to-teal-600',
-  'from-violet-500 to-purple-600',
-  'from-amber-500 to-orange-600',
-  'from-sky-500 to-blue-600',
-  'from-rose-500 to-pink-600',
+const DEPARTMENT_COLUMNS = [
+  { key: 'finance', label: 'Finance', color: 'from-emerald-500 to-teal-600' },
+  { key: 'hr', label: 'HR', color: 'from-amber-500 to-orange-600' },
+  { key: 'engineering', label: 'Engineering', color: 'from-blue-500 to-indigo-600' },
 ];
 
 const TYPE_STYLES = {
@@ -30,31 +27,32 @@ function SkeletonCard() {
 
 export default function EmployeeKanban() {
   const [employees, setEmployees] = useState([]);
-  const [departments, setDepartments] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [employeeType, setEmployeeType] = useState('');
+  const [assignment, setAssignment] = useState('');
 
-  useEffect(() => {
-    Promise.all([client.get('/employees'), client.get('/departments')])
-      .then(([empRes, deptRes]) => {
-        setEmployees(empRes.data.employees || empRes.data);
-        setDepartments(deptRes.data);
-      })
+  const fetchEmployees = () => {
+    setLoading(true);
+    const params = new URLSearchParams({ all: 'true' });
+    if (employeeType) params.set('employee_type', employeeType);
+    if (assignment) params.set('assignment', assignment);
+    client.get(`/employees?${params.toString()}`)
+      .then(({ data }) => setEmployees(data.employees || data))
       .catch(console.error)
       .finally(() => setLoading(false));
-  }, []);
+  };
 
-  // Build dept name map
-  const deptMap = {};
-  departments.forEach((d) => { deptMap[d.id] = d.name; });
+  useEffect(() => {
+    fetchEmployees();
+  }, [employeeType, assignment]);
 
-  // Group by department
-  const groups = {};
-  employees.forEach((emp) => {
-    const key = emp.department_id || 'unassigned';
-    const label = emp.department_name || deptMap[emp.department_id] || 'Unassigned';
-    if (!groups[key]) groups[key] = { label, employees: [] };
-    groups[key].employees.push(emp);
-  });
+  const getDepartmentKey = (employee) => {
+    const department = (employee.department_name || '').toLowerCase();
+    if (department.includes('finance')) return 'finance';
+    if (department.includes('human') || department === 'hr' || department.includes('hr')) return 'hr';
+    if (department.includes('engineering')) return 'engineering';
+    return null;
+  };
 
   return (
     <div>
@@ -65,7 +63,7 @@ export default function EmployeeKanban() {
             Employees — Kanban
           </h1>
           <p className="text-xs text-gray-500 mt-1">
-            {loading ? '...' : `${employees.length} employees across ${Object.keys(groups).length} departments`}
+            {loading ? '...' : `${employees.length} employees shown across 3 departments`}
           </p>
         </div>
         <Link
@@ -75,9 +73,42 @@ export default function EmployeeKanban() {
           <List className="w-4 h-4" />
           List View
         </Link>
+        <button
+          type="button"
+          onClick={fetchEmployees}
+          disabled={loading}
+          className="flex items-center gap-1.5 px-3.5 py-2 text-xs font-semibold bg-white border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition shadow-sm disabled:opacity-50"
+        >
+          <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
+          Refresh
+        </button>
       </div>
 
-      <div className="flex gap-5 overflow-x-auto pb-6" style={{ minHeight: 400 }}>
+      <div className="flex flex-col lg:flex-row gap-5" style={{ minHeight: 400 }}>
+        <aside className="lg:w-56 shrink-0 bg-white border border-gray-200 rounded-xl p-4 h-fit shadow-sm">
+          <h2 className="text-xs font-extrabold text-gray-500 uppercase tracking-wider mb-3">Filters</h2>
+          <label className="block text-xs font-semibold text-gray-600 mb-1.5">Employee type</label>
+          <select value={employeeType} onChange={(event) => setEmployeeType(event.target.value)} className="w-full text-xs bg-gray-50 border border-gray-200 rounded-lg px-2.5 py-2 mb-4 focus:ring-2 focus:ring-blue-500 focus:outline-none">
+            <option value="">All types</option>
+            <option value="full_time">Full time</option>
+            <option value="contract">Contract</option>
+            <option value="part_time">Part time</option>
+          </select>
+          <label className="block text-xs font-semibold text-gray-600 mb-1.5">Department assignment</label>
+          <div className="space-y-1">
+            {[
+              { value: '', label: 'All employees', icon: Users },
+              { value: 'assigned', label: 'Assigned', icon: UserCheck },
+              { value: 'unassigned', label: 'Unassigned', icon: UserX },
+            ].map(({ value, label, icon: Icon }) => (
+              <button key={value || 'all'} type="button" onClick={() => setAssignment(value)} className={`w-full flex items-center gap-2 rounded-lg px-2.5 py-2 text-left text-xs font-semibold transition ${assignment === value ? 'bg-blue-50 text-blue-700' : 'text-gray-600 hover:bg-gray-50'}`}>
+                <Icon className="w-3.5 h-3.5" /> {label}
+              </button>
+            ))}
+          </div>
+        </aside>
+
+        <div className="flex flex-1 gap-5 overflow-x-auto pb-6">
         {loading
           ? [...Array(3)].map((_, gi) => (
             <div key={gi} className="min-w-[280px] flex-shrink-0 space-y-3">
@@ -85,17 +116,19 @@ export default function EmployeeKanban() {
               {[...Array(4)].map((_, i) => <SkeletonCard key={i} />)}
             </div>
           ))
-          : Object.entries(groups).map(([deptId, group], groupIdx) => (
-            <div key={deptId} className="min-w-[280px] flex-shrink-0">
+          : DEPARTMENT_COLUMNS.map((department) => {
+            const departmentEmployees = employees.filter((employee) => getDepartmentKey(employee) === department.key);
+            return (
+            <div key={department.key} className="min-w-[280px] flex-1">
               {/* Column Header */}
-              <div className={`bg-gradient-to-r ${DEPT_COLORS[groupIdx % DEPT_COLORS.length]} rounded-xl px-4 py-3 mb-3 shadow-sm`}>
-                <h2 className="text-sm font-bold text-white">{group.label}</h2>
-                <p className="text-xs text-white/70 mt-0.5">{group.employees.length} employee{group.employees.length !== 1 ? 's' : ''}</p>
+              <div className={`bg-gradient-to-r ${department.color} rounded-xl px-4 py-3 mb-3 shadow-sm`}>
+                <h2 className="text-sm font-bold text-white">{department.label}</h2>
+                <p className="text-xs text-white/70 mt-0.5">{departmentEmployees.length} employee{departmentEmployees.length !== 1 ? 's' : ''}</p>
               </div>
 
               {/* Cards */}
               <div className="space-y-3">
-                {group.employees.map((emp) => (
+                {departmentEmployees.map((emp) => (
                   <Link
                     key={emp.id}
                     to={`/employees/${emp.id}`}
@@ -128,10 +161,11 @@ export default function EmployeeKanban() {
                 ))}
               </div>
             </div>
-          ))
+          );
+          })
         }
 
-        {!loading && Object.keys(groups).length === 0 && (
+        {!loading && employees.length === 0 && (
           <div className="flex items-center justify-center w-full py-24">
             <div className="text-center">
               <Users className="w-16 h-16 text-gray-200 mx-auto mb-4" />
@@ -140,6 +174,7 @@ export default function EmployeeKanban() {
             </div>
           </div>
         )}
+        </div>
       </div>
     </div>
   );

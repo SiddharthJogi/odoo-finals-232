@@ -27,7 +27,7 @@ export default function EmployeeList() {
   const [typeFilter, setTypeFilter] = useState('');
   const [statusFilter, setStatusFilter] = useState('active');
   const [page, setPage] = useState(1);
-  const [pagination, setPagination] = useState({ page: 1, limit: 8, total: 0, totalPages: 0 });
+  const [pagination, setPagination] = useState({ page: 1, limit: 6, total: 0, totalPages: 0 });
   const { addToast } = useToast();
 
   useEffect(() => {
@@ -37,7 +37,7 @@ export default function EmployeeList() {
   }, [addToast]);
 
   useEffect(() => {
-    const params = new URLSearchParams({ page: String(page), limit: '8' });
+    const params = new URLSearchParams({ page: String(page), limit: '6' });
     if (search.trim()) params.set('search', search.trim());
     if (deptFilter) params.set('department_id', deptFilter);
     if (typeFilter) params.set('employee_type', typeFilter);
@@ -47,7 +47,7 @@ export default function EmployeeList() {
     client.get(`/employees?${params.toString()}`)
       .then(({ data }) => {
         setEmployees(data.employees || []);
-        setPagination(data.pagination || { page, limit: 8, total: 0, totalPages: 0 });
+        setPagination(data.pagination || { page, limit: 6, total: 0, totalPages: 0 });
       })
       .catch(() => addToast('Failed to load employees', 'error'))
       .finally(() => setLoading(false));
@@ -191,9 +191,8 @@ export default function EmployeeList() {
                     </span>
                   </td>
                   <td className="px-6 py-4">
-                    <span className={`inline-flex items-center gap-1 px-2 py-0.5 text-xs font-semibold rounded-full ${
-                      emp.status === 'active' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-gray-100 text-gray-500 border border-gray-200'
-                    }`}>
+                    <span className={`inline-flex items-center gap-1 px-2 py-0.5 text-xs font-semibold rounded-full ${emp.status === 'active' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-gray-100 text-gray-500 border border-gray-200'
+                      }`}>
                       {emp.status === 'active' && <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 inline-block" />}
                       {emp.status}
                     </span>
