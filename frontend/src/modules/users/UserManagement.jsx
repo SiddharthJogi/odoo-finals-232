@@ -38,6 +38,15 @@ export default function UserManagement() {
       ? 'bg-yellow-500 text-white'
       : 'bg-green-600 text-white';
 
+  const linkedEmployeeIds = new Set(
+    users
+      .filter((user) => user.employee_id)
+      .map((user) => String(user.employee_id))
+  );
+  const availableEmployees = employees.filter(
+    (employee) => !linkedEmployeeIds.has(String(employee.id))
+  );
+
   const fetchUsers = useCallback(() => {
     setLoading(true);
     client.get('/users')
@@ -54,9 +63,9 @@ export default function UserManagement() {
     ]).then(([rolesRes, empRes]) => {
       setRoles(rolesRes.data);
       setEmployees(empRes.data);
-      // Default to first role
-      if (rolesRes.data.length > 0) {
-        setForm(f => ({ ...f, role_id: String(rolesRes.data[0].id) }));
+      const employeeRole = rolesRes.data.find((role) => role.name === 'employee');
+      if (employeeRole) {
+        setForm(f => ({ ...f, role_id: String(employeeRole.id) }));
       }
     }).catch(console.error);
   }, [fetchUsers]);
@@ -76,7 +85,8 @@ export default function UserManagement() {
       showToast(data.warning || 'User created and credentials emailed!', data.warning ? 'warning' : 'success');
       setManualCredentials(data.temporary_password ? { email: data.email, password: data.temporary_password } : null);
       setShowCreate(false);
-      setForm({ email: '', password: '', role_id: String(roles[0]?.id || ''), employee_id: '' });
+      const employeeRole = roles.find((role) => role.name === 'employee');
+      setForm({ email: '', password: '', role_id: String(employeeRole?.id || ''), employee_id: '' });
       fetchUsers();
     } catch (err) {
       setCreateError(err.response?.data?.error || 'Failed to create user');
@@ -230,11 +240,13 @@ export default function UserManagement() {
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm"
                 >
                   <option value="">— Not linked —</option>
-                  {employees.map(emp => (
+                  {availableEmployees.map(emp => (
                     <option key={emp.id} value={emp.id}>{emp.name} ({emp.email})</option>
                   ))}
                 </select>
-                <p className="text-xs text-gray-400 mt-1">Linking allows this user to view their own payslips and attendance.</p>
+                <p className="text-xs text-gray-400 mt-1">
+                  Only employees without an existing account are shown. Linking allows this user to view their own payslips and attendance.
+                </p>
               </div>
               <div className="flex justify-end gap-3 pt-2">
                 <button

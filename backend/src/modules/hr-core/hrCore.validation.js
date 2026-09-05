@@ -16,6 +16,11 @@ const updateRoleSchema = z.object({
   role_id: z.number().int().positive(),
 });
 
+const changePasswordSchema = z.object({
+  current_password: z.string().min(1),
+  new_password: z.string().min(8),
+});
+
 const createEmployeeSchema = z.object({
   name: z.string().min(1).max(150),
   email: z.string().email(),
@@ -43,7 +48,13 @@ const createContractSchema = z.object({
   end_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
   structure_id: z.number().int().positive(),
   schedule_id: z.number().int().positive().optional(),
-  status: z.enum(['active', 'expired', 'cancelled']).default('active'),
+  status: z.enum(['active', 'expired', 'cancelled', 'archived']).default('active'),
+});
+
+const updateContractSchema = createContractSchema.partial();
+
+const updateContractStatusSchema = z.object({
+  status: z.enum(['active', 'expired', 'cancelled', 'archived']),
 });
 
 const createScheduleSchema = z.object({
@@ -66,10 +77,13 @@ module.exports = {
   loginSchema,
   createUserSchema,
   updateRoleSchema,
+  changePasswordSchema,
   createEmployeeSchema,
   provisionEmployeeSchema,
   updateEmployeeSchema,
   createContractSchema,
+  updateContractSchema,
+  updateContractStatusSchema,
   createScheduleSchema,
   createDepartmentSchema,
 };

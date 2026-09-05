@@ -37,6 +37,14 @@ async function findUserById(id) {
   return rows[0] || null;
 }
 
+async function findUserPasswordById(id) {
+  const { rows } = await db.query(
+    'SELECT password_hash, is_active FROM users WHERE id = $1',
+    [id]
+  );
+  return rows[0] || null;
+}
+
 async function findUserByEmployeeId(employeeId) {
   const { rows } = await db.query(
     'SELECT id FROM users WHERE employee_id = $1',
@@ -73,6 +81,15 @@ async function updateUserRole(userId, roleId) {
     `UPDATE users SET role_id = $1 WHERE id = $2
      RETURNING id, email, role_id, employee_id, is_active`,
     [roleId, userId]
+  );
+  return rows[0] || null;
+}
+
+async function updateUserPassword(userId, passwordHash) {
+  const { rows } = await db.query(
+    `UPDATE users SET password_hash = $1 WHERE id = $2
+     RETURNING id, email, role_id, employee_id, is_active`,
+    [passwordHash, userId]
   );
   return rows[0] || null;
 }
@@ -198,6 +215,17 @@ async function findAllContracts() {
   return rows;
 }
 
+async function findContractById(id) {
+  const { rows } = await db.query(
+    `SELECT c.*, e.name as employee_name
+     FROM contracts c
+     JOIN employees e ON c.employee_id = e.id
+     WHERE c.id = $1`,
+    [id]
+  );
+  return rows[0] || null;
+}
+
 async function findContractsByEmployee(employeeId) {
   const { rows } = await db.query(
     'SELECT * FROM contracts WHERE employee_id = $1 ORDER BY start_date DESC',
@@ -247,6 +275,24 @@ async function insertContract(data) {
   return rows[0];
 }
 
+async function updateContract(id, data) {
+  const fields = [];
+  const params = [];
+
+  for (const [key, value] of Object.entries(data)) {
+    fields.push(`${key} = $${params.length + 1}`);
+    params.push(value);
+  }
+  if (fields.length === 0) return findContractById(id);
+
+  params.push(id);
+  const { rows } = await db.query(
+    `UPDATE contracts SET ${fields.join(', ')} WHERE id = $${params.length} RETURNING *`,
+    params
+  );
+  return rows[0] || null;
+}
+
 // ───────────── Working Schedules ─────────────
 async function findAllSchedules() {
   const { rows } = await db.query('SELECT * FROM working_schedules ORDER BY id');
@@ -290,10 +336,12 @@ module.exports = {
   findRoleByName,
   findUserByEmail,
   findUserById,
+  findUserPasswordById,
   findUserByEmployeeId,
   findAllUsers,
   insertUser,
   updateUserRole,
+  updateUserPassword,
   deactivateUser,
   reactivateUser,
   findAllDepartments,
@@ -304,10 +352,12 @@ module.exports = {
   insertEmployeeAndUser,
   updateEmployee,
   findAllContracts,
+  findContractById,
   findContractsByEmployee,
   findApplicableContract,
   findOverlappingActiveContracts,
   insertContract,
+  updateContract,
   findAllSchedules,
   findScheduleById,
   insertSchedule,
