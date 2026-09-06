@@ -28,7 +28,7 @@ export default function EmployeeList() {
     search, setSearch, deptFilter, setDeptFilter,
     typeFilter, setTypeFilter, statusFilter, setStatusFilter,
     clearFilters, hasActiveFilters,
-  } = useEmployeeSearch({ limit: 20 });
+  } = useEmployeeSearch({ limit: 10 });
 
   useEffect(() => {
     client.get('/departments').then(({ data }) => setDepartments(data)).catch(console.error);
@@ -41,7 +41,7 @@ export default function EmployeeList() {
     contract: 'bg-purple-50 text-purple-700 border border-purple-200',
   };
 
-  const totalPages = Math.max(1, Math.ceil(total / 20));
+  const totalPages = Math.max(1, Math.ceil(total / 10));
 
   return (
     <div>
