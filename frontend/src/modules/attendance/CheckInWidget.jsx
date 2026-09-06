@@ -122,6 +122,17 @@ export default function CheckInWidget() {
     ? new Date(value).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
     : '—';
 
+  const formatWorkedDuration = (att) => {
+    if (!att.check_in || !att.check_out) return 'In progress';
+    const hours = Number(att.worked_hours || 0);
+    if (hours > 0) return `${hours.toFixed(2)}h`;
+    const elapsedMs = new Date(att.check_out).getTime() - new Date(att.check_in).getTime();
+    const mins = Math.floor(elapsedMs / 60000);
+    const secs = Math.floor((elapsedMs % 60000) / 1000);
+    if (mins > 0) return `${mins}m (${secs}s)`;
+    return `< 1m (${secs}s)`;
+  };
+
   const shiftStart = activeRecord?.scheduled_start?.slice(0, 5) || '09:00';
   const shiftEnd = activeRecord?.scheduled_end?.slice(0, 5) || '17:00';
   const shiftStartHours = Number(shiftStart.slice(0, 2)) + Number(shiftStart.slice(3, 5)) / 60;
@@ -197,17 +208,45 @@ export default function CheckInWidget() {
         ) : (
           <div className="overflow-x-auto">
             <table className="min-w-full text-left">
-              <thead className="bg-muted/40 text-[10px] uppercase tracking-widest text-muted-foreground font-bold">
-                <tr><th className="px-6 py-3">Date</th><th className="px-6 py-3">Check in</th><th className="px-6 py-3">Check out</th><th className="px-6 py-3">Duration</th><th className="px-6 py-3">Status</th></tr>
+              <thead className="bg-muted/40 text-[10px] uppercase tracking-widest text-muted-foreground font-bold border-b border-border">
+                <tr>
+                  <th className="px-6 py-3">EMPLOYEE</th>
+                  <th className="px-6 py-3">CHECK IN</th>
+                  <th className="px-6 py-3">CHECK OUT</th>
+                  <th className="px-6 py-3">WORKED HOURS</th>
+                  <th className="px-6 py-3">STATUS</th>
+                </tr>
               </thead>
               <tbody className="divide-y divide-border text-sm">
                 {attendanceHistory.map((record) => (
                   <tr key={record.id} className="hover:bg-muted/30 transition-colors">
-                    <td className="px-6 py-4 font-semibold text-foreground">{formatDate(record.check_in)}</td>
-                    <td className="px-6 py-4 text-muted-foreground font-mono text-xs">{formatTime(record.check_in)}</td>
-                    <td className="px-6 py-4 text-muted-foreground font-mono text-xs">{formatTime(record.check_out)}</td>
-                    <td className="px-6 py-4 font-bold text-foreground">{record.worked_hours ? `${Number(record.worked_hours).toFixed(2)}h` : 'In progress'}</td>
-                    <td className="px-6 py-4"><span className={cn('inline-flex items-center px-2.5 py-1 rounded-full text-[11px] font-bold', record.check_out ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800')}>{record.check_out ? 'Completed' : 'In progress'}</span></td>
+                    <td className="px-6 py-4 font-bold text-foreground">
+                      <div>{record.employee_name || user?.name || `Employee #${record.employee_id}`}</div>
+                      <div className="text-xs text-muted-foreground font-normal mt-0.5">{record.job_position || user?.role || 'employee'}</div>
+                    </td>
+                    <td className="px-6 py-4 text-muted-foreground font-mono text-xs">
+                      {record.check_in ? new Date(record.check_in).toLocaleString() : '—'}
+                    </td>
+                    <td className="px-6 py-4 text-muted-foreground font-mono text-xs">
+                      {record.check_out ? new Date(record.check_out).toLocaleString() : '—'}
+                    </td>
+                    <td className="px-6 py-4 font-semibold text-foreground font-mono text-xs">
+                      {formatWorkedDuration(record)}
+                    </td>
+                    <td className="px-6 py-4">
+                      <span className={cn(
+                        'inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium',
+                        record.status === 'done' || (!record.status && record.check_out)
+                          ? 'bg-emerald-100 text-emerald-800'
+                          : record.status === 'in_progress' || (!record.status && !record.check_out)
+                          ? 'bg-amber-100 text-amber-800 animate-pulse'
+                          : record.status === 'corrected'
+                          ? 'bg-blue-100 text-blue-800'
+                          : 'bg-rose-100 text-rose-800'
+                      )}>
+                        {record.status || (record.check_out ? 'done' : 'in_progress')}
+                      </span>
+                    </td>
                   </tr>
                 ))}
               </tbody>
