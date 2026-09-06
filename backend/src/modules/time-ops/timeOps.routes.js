@@ -16,7 +16,9 @@ router.patch('/attendance/:id', authenticate, requireRole('admin', 'hr_manager')
 
 // ───────────── Time Off Types ─────────────
 router.get('/time-off/types', authenticate, ctrl.listTimeOffTypes);
+router.get('/time-off/types/:id', authenticate, ctrl.getTimeOffType);
 router.post('/time-off/types', authenticate, requireRole('admin', 'hr_manager'), ctrl.createTimeOffType);
+router.put('/time-off/types/:id', authenticate, requireRole('admin', 'hr_manager'), ctrl.updateTimeOffType);
 
 // ───────────── Allocations ─────────────
 router.get('/time-off/allocations', authenticate, ctrl.listAllocations);

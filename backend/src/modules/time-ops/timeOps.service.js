@@ -227,12 +227,24 @@ async function correctAttendance(id, data, correctedBy) {
 }
 
 // ───────────── Time Off Types ─────────────
-async function listTimeOffTypes() {
-  return repo.findAllTimeOffTypes();
+async function listTimeOffTypes(filters = {}) {
+  return repo.findAllTimeOffTypes(filters);
+}
+
+async function getTimeOffType(id) {
+  const type = await repo.findTimeOffTypeById(id);
+  if (!type) throw new NotFoundError('Time Off Type', id);
+  return type;
 }
 
 async function createTimeOffType(data) {
   return repo.insertTimeOffType(data);
+}
+
+async function updateTimeOffType(id, data) {
+  const existing = await repo.findTimeOffTypeById(id);
+  if (!existing) throw new NotFoundError('Time Off Type', id);
+  return repo.updateTimeOffType(id, data);
 }
 
 // ───────────── Allocations ─────────────
@@ -483,7 +495,9 @@ module.exports = {
   checkOut,
   correctAttendance,
   listTimeOffTypes,
+  getTimeOffType,
   createTimeOffType,
+  updateTimeOffType,
   listAllocations,
   createAllocation,
   listTimeOffRequests,

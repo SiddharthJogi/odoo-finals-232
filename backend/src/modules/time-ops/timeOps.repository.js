@@ -123,18 +123,65 @@ async function updateAttendance(id, data, correctedBy) {
 }
 
 // ───────────── Time Off Types ─────────────
-async function findAllTimeOffTypes() {
-  const { rows } = await db.query('SELECT * FROM time_off_types ORDER BY id');
+async function findAllTimeOffTypes(filters = {}) {
+  let sql = 'SELECT * FROM time_off_types WHERE 1=1';
+  const params = [];
+  if (filters.search) {
+    params.push(`%${filters.search}%`);
+    sql += ` AND name ILIKE $${params.length}`;
+  }
+  sql += ' ORDER BY id';
+  const { rows } = await db.query(sql, params);
   return rows;
+}
+
+async function findTimeOffTypeById(id) {
+  const { rows } = await db.query('SELECT * FROM time_off_types WHERE id = $1', [id]);
+  return rows[0] || null;
 }
 
 async function insertTimeOffType(data) {
   const { rows } = await db.query(
-    `INSERT INTO time_off_types (name, unit, requires_allocation, affects_payroll)
-     VALUES ($1, $2, $3, $4) RETURNING *`,
-    [data.name, data.unit, data.requires_allocation, data.affects_payroll]
+    `INSERT INTO time_off_types (name, unit, requires_allocation, affects_payroll, approval_type, work_entry_type, display_color, notes, status)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING *`,
+    [
+      data.name,
+      data.unit || 'days',
+      data.requires_allocation ?? true,
+      data.affects_payroll ?? false,
+      data.approval_type || 'manager',
+      data.work_entry_type || 'leave',
+      data.display_color || 'blue',
+      data.notes || null,
+      data.status || 'active',
+    ]
   );
   return rows[0];
+}
+
+async function updateTimeOffType(id, data) {
+  const fields = [];
+  const params = [];
+  let idx = 1;
+
+  if (data.name !== undefined) { fields.push(`name = $${idx++}`); params.push(data.name); }
+  if (data.unit !== undefined) { fields.push(`unit = $${idx++}`); params.push(data.unit); }
+  if (data.requires_allocation !== undefined) { fields.push(`requires_allocation = $${idx++}`); params.push(data.requires_allocation); }
+  if (data.affects_payroll !== undefined) { fields.push(`affects_payroll = $${idx++}`); params.push(data.affects_payroll); }
+  if (data.approval_type !== undefined) { fields.push(`approval_type = $${idx++}`); params.push(data.approval_type); }
+  if (data.work_entry_type !== undefined) { fields.push(`work_entry_type = $${idx++}`); params.push(data.work_entry_type); }
+  if (data.display_color !== undefined) { fields.push(`display_color = $${idx++}`); params.push(data.display_color); }
+  if (data.notes !== undefined) { fields.push(`notes = $${idx++}`); params.push(data.notes); }
+  if (data.status !== undefined) { fields.push(`status = $${idx++}`); params.push(data.status); }
+
+  if (fields.length === 0) return findTimeOffTypeById(id);
+  params.push(id);
+
+  const { rows } = await db.query(
+    `UPDATE time_off_types SET ${fields.join(', ')} WHERE id = $${idx} RETURNING *`,
+    params
+  );
+  return rows[0] || null;
 }
 
 // ───────────── Allocations ─────────────
@@ -364,10 +411,6 @@ async function updateTimeOffRequestStatus(id, status, approvedBy, client) {
   return rows[0] || null;
 }
 
-async function findTimeOffTypeById(id) {
-  const { rows } = await db.query('SELECT * FROM time_off_types WHERE id = $1', [id]);
-  return rows[0] || null;
-}
 
 async function countLateAttendances(employeeId) {
   const { rows } = await db.query(
@@ -404,7 +447,9 @@ module.exports = {
   updateAttendanceCheckOut,
   updateAttendance,
   findAllTimeOffTypes,
+  findTimeOffTypeById,
   insertTimeOffType,
+  updateTimeOffType,
   findAllocations,
   findAllocationForDeduction,
   insertAllocation,

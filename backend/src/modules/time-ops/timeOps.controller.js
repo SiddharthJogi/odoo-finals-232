@@ -7,6 +7,7 @@ const {
   checkOutSchema,
   correctAttendanceSchema,
   createTimeOffTypeSchema,
+  updateTimeOffTypeSchema,
   createAllocationSchema,
   createTimeOffRequestSchema,
 } = require('./timeOps.validation');
@@ -94,15 +95,27 @@ const correctAttendance = asyncHandler(async (req, res) => {
 });
 
 // ───────────── Time Off Types ─────────────
-const listTimeOffTypes = asyncHandler(async (_req, res) => {
-  const types = await service.listTimeOffTypes();
+const listTimeOffTypes = asyncHandler(async (req, res) => {
+  const filters = { search: req.query.search ? req.query.search.trim() : undefined };
+  const types = await service.listTimeOffTypes(filters);
   res.json(types);
+});
+
+const getTimeOffType = asyncHandler(async (req, res) => {
+  const type = await service.getTimeOffType(parseInt(req.params.id, 10));
+  res.json(type);
 });
 
 const createTimeOffType = asyncHandler(async (req, res) => {
   const data = createTimeOffTypeSchema.parse(req.body);
   const type = await service.createTimeOffType(data);
   res.status(201).json(type);
+});
+
+const updateTimeOffType = asyncHandler(async (req, res) => {
+  const data = updateTimeOffTypeSchema.parse(req.body);
+  const type = await service.updateTimeOffType(parseInt(req.params.id, 10), data);
+  res.json(type);
 });
 
 // ───────────── Allocations ─────────────
@@ -187,7 +200,9 @@ module.exports = {
   doCheckOut,
   correctAttendance,
   listTimeOffTypes,
+  getTimeOffType,
   createTimeOffType,
+  updateTimeOffType,
   listAllocations,
   createAllocation,
   listTimeOffRequests,
