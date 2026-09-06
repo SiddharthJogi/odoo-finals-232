@@ -483,18 +483,19 @@ export default function Requests() {
       {/* New Request Modal */}
       {showModal && (
         <div className="fixed inset-0 z-50 bg-background/80 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-card border border-border rounded-3xl max-w-md w-full p-8 shadow-2xl space-y-6">
-            <div className="flex justify-between items-center">
+          <div className="bg-card border border-border rounded-3xl max-w-md w-full shadow-2xl max-h-[90vh] flex flex-col overflow-hidden">
+            <div className="flex justify-between items-center px-8 pt-8">
               <h3 className="text-xl font-extrabold text-foreground tracking-tight">Request Time Off</h3>
               <button onClick={() => setShowModal(false)} className="text-muted-foreground hover:text-foreground transition-colors">
                 <X className="w-5 h-5" />
               </button>
             </div>
-            <p className="text-sm text-muted-foreground font-medium">Apply for annual leave, sick leave, or time off</p>
+            <p className="text-sm text-muted-foreground font-medium px-8 mt-2">Apply for annual leave, sick leave, or time off</p>
 
-            {error && <div className="p-3 bg-rose-50 text-rose-700 text-xs rounded-xl">{error}</div>}
+            {error && <div className="mx-8 mt-4 p-3 bg-rose-50 text-rose-700 text-xs rounded-xl">{error}</div>}
 
-            <form onSubmit={handleCreateRequest} className="space-y-4">
+            <form onSubmit={handleCreateRequest} className="flex flex-col flex-1 min-h-0 mt-6">
+            <div className="space-y-4 px-8 pb-6 overflow-y-auto flex-1 min-h-0">
               {(role !== 'employee' || !user?.employeeId) && (
                 <div>
                   <label className="block text-xs font-semibold text-gray-600 mb-1">Employee</label>
@@ -623,8 +624,9 @@ export default function Requests() {
                   Responsible HR manager overseeing deferred time off when requests fall into closed pay periods.
                 </p>
               </div>
+            </div>
 
-              <div className="flex gap-3 pt-2 justify-end">
+              <div className="flex gap-3 justify-end px-8 py-6 border-t border-border shrink-0">
                 <button
                   type="button"
                   onClick={() => setShowModal(false)}

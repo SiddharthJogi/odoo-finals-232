@@ -124,7 +124,7 @@ async function reactivateUser(actorId, targetUserId) {
   if (!existing) throw new NotFoundError('User', targetUserId);
   if (existing.is_active) throw new ValidationError('User account is already active');
 
-  const temporaryPassword = data.password || crypto.randomBytes(12).toString('base64url');
+  const temporaryPassword = crypto.randomBytes(12).toString('base64url');
   const passwordHash = await bcrypt.hash(temporaryPassword, config.bcryptRounds);
   const user = await repo.reactivateUser(targetUserId, passwordHash);
 
