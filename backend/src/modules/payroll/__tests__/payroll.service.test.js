@@ -2,7 +2,7 @@
 jest.mock('../../../config', () => ({}));
 jest.mock('../../../db');
 jest.mock('../payroll.repository');
-jest.mock('../../performance/performance.repository');
+jest.mock('../../performance/performance.service');
 jest.mock('http', () => ({
   request: jest.fn(() => ({
     on: jest.fn(),
@@ -19,7 +19,7 @@ const service = require('../payroll.service');
 const repo = require('../payroll.repository');
 const db = require('../../../db');
 const hrCoreService = require('../../hr-core/hrCore.service');
-const performanceRepo = require('../../performance/performance.repository');
+const performanceService = require('../../performance/performance.service');
 const { NotFoundError, ValidationError } = require('../../../shared/errors');
 
 describe('payroll.service - Payrun Transitions', () => {
@@ -33,7 +33,7 @@ describe('payroll.service - Payrun Transitions', () => {
     };
     db.getClient.mockResolvedValue(mockClient);
     repo.findPayslipsByPayrun.mockResolvedValue([]);
-    performanceRepo.findApprovedPerformancePay.mockResolvedValue(null);
+    performanceService.findApprovedPerformancePay.mockResolvedValue(null);
   });
 
   it('should transition payrun from draft to computed', async () => {

@@ -46,7 +46,7 @@ import {
   UserCircle,
   KeyRound,
 } from 'lucide-react';
-import { NAV_ITEMS } from './navConfig';
+import { NAV_ITEMS, ROLES } from './navConfig';
 import OnboardingTour from './components/OnboardingTour';
 
 const ROLE_BADGE = {
@@ -55,14 +55,6 @@ const ROLE_BADGE = {
   hr_payroll_manager: 'bg-amber-900/40 text-amber-300 border-amber-700/50',
   hr_payroll_user: 'bg-sky-900/40 text-sky-300 border-sky-700/50',
   employee: 'bg-emerald-900/40 text-emerald-300 border-emerald-700/50',
-};
-
-const ROLES = {
-  admin: ['admin'],
-  hr: ['admin', 'hr_manager'],
-  hrAndPayroll: ['admin', 'hr_manager', 'hr_payroll_manager', 'hr_payroll_user'],
-  payroll: ['admin', 'hr_manager', 'hr_payroll_manager', 'hr_payroll_user'],
-  all: ['admin', 'hr_manager', 'hr_payroll_manager', 'hr_payroll_user', 'employee'],
 };
 
 const SAFE_REDIRECTS = {
@@ -382,10 +374,10 @@ export default function App() {
             <Route path="/time-off/types" element={<RoleRoute roles={ROLES.hr}><AnimatedRoute><Types /></AnimatedRoute></RoleRoute>} />
 
             {/* Dev 3: Payroll */}
-            <Route path="/payroll" element={<RoleRoute roles={ROLES.payroll}><AnimatedRoute><PayrunWizard /></AnimatedRoute></RoleRoute>} />
-            <Route path="/payroll/structures" element={<RoleRoute roles={ROLES.payroll}><AnimatedRoute><Structures /></AnimatedRoute></RoleRoute>} />
-            <Route path="/payroll/rules" element={<RoleRoute roles={ROLES.payroll}><AnimatedRoute><Rules /></AnimatedRoute></RoleRoute>} />
-            <Route path="/payroll/payslips/:id" element={<RoleRoute roles={ROLES.payroll}><AnimatedRoute><PayslipView /></AnimatedRoute></RoleRoute>} />
+            <Route path="/payroll" element={<RoleRoute roles={ROLES.hrAndPayroll}><AnimatedRoute><PayrunWizard /></AnimatedRoute></RoleRoute>} />
+            <Route path="/payroll/structures" element={<RoleRoute roles={ROLES.hrAndPayroll}><AnimatedRoute><Structures /></AnimatedRoute></RoleRoute>} />
+            <Route path="/payroll/rules" element={<RoleRoute roles={ROLES.hrAndPayroll}><AnimatedRoute><Rules /></AnimatedRoute></RoleRoute>} />
+            <Route path="/payroll/payslips/:id" element={<RoleRoute roles={ROLES.hrAndPayroll}><AnimatedRoute><PayslipView /></AnimatedRoute></RoleRoute>} />
             <Route path="/performance" element={<RoleRoute roles={ROLES.all}><AnimatedRoute><PerformancePage /></AnimatedRoute></RoleRoute>} />
 
             {/* Dev 4: Dashboard */}
