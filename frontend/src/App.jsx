@@ -1,10 +1,8 @@
-import React, { useState, useRef, useEffect } from 'react';
-import { Routes, Route, Navigate, Link, useLocation, useNavigate } from 'react-router-dom';
+import { Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from './auth/AuthContext';
-import client from './api/client';
 import LoginPage from './auth/LoginPage';
-import { cn } from './lib/utils';
+import Sidebar from './components/Sidebar';
 
 // Module pages — Dev 1
 import EmployeeList from './modules/employees/EmployeeList';
@@ -17,7 +15,6 @@ import ContractForm from './modules/contracts/ContractForm';
 import ScheduleList from './modules/schedules/ScheduleList';
 import ScheduleForm from './modules/schedules/ScheduleForm';
 import UserManagement from './modules/users/UserManagement';
-import logo from '../assets/logo.png';
 import ChangePassword from './auth/ChangePassword';
 
 // Module pages — Dev 2
@@ -38,271 +35,13 @@ import PerformancePage from './modules/performance/PerformancePage';
 import Dashboard from './modules/dashboard/Dashboard';
 import AiCopilotWidget from './components/AiCopilotWidget';
 
-import {
-  ChevronDown,
-  Menu,
-  X,
-  LogOut,
-  UserCircle,
-  KeyRound,
-} from 'lucide-react';
-import { NAV_ITEMS, ROLES } from './navConfig';
+import { ROLES } from './navConfig';
 import OnboardingTour from './components/OnboardingTour';
-
-const ROLE_BADGE = {
-  admin: 'bg-rose-900/40 text-rose-300 border-rose-700/50',
-  hr_manager: 'bg-violet-900/40 text-violet-300 border-violet-700/50',
-  hr_payroll_manager: 'bg-amber-900/40 text-amber-300 border-amber-700/50',
-  hr_payroll_user: 'bg-sky-900/40 text-sky-300 border-sky-700/50',
-  employee: 'bg-emerald-900/40 text-emerald-300 border-emerald-700/50',
-};
 
 const SAFE_REDIRECTS = {
   employee: '/attendance/check-in',
   default: '/dashboard',
 };
-
-function DropdownMenu({ item, isActive, role }) {
-  const [open, setOpen] = useState(false);
-  const ref = useRef(null);
-  const location = useLocation();
-  const visibleChildren = (item.children || []).filter((child) => !child.roles || child.roles.includes(role));
-
-  useEffect(() => {
-    const handleClickOutside = (e) => {
-      if (ref.current && !ref.current.contains(e.target)) setOpen(false);
-    };
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, []);
-
-  if (!item.children) {
-    const Icon = item.icon;
-    return (
-      <Link
-        to={item.path}
-        className={cn(
-          "flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-all duration-200",
-          isActive
-            ? "bg-primary text-primary-foreground shadow-sm"
-            : "text-muted-foreground hover:text-foreground hover:bg-muted/50"
-        )}
-      >
-        <Icon className="w-4 h-4" />
-        {item.label}
-      </Link>
-    );
-  }
-
-  const Icon = item.icon;
-  return (
-    <div ref={ref} className="relative">
-      <button
-        onClick={() => setOpen(!open)}
-        className={cn(
-          "flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-all duration-200",
-          isActive
-            ? "bg-primary text-primary-foreground shadow-sm"
-            : "text-muted-foreground hover:text-foreground hover:bg-muted/50"
-        )}
-      >
-        <Icon className="w-4 h-4" />
-        {item.label}
-        <ChevronDown className={`w-3.5 h-3.5 transition-transform duration-200 ${open ? 'rotate-180' : ''}`} />
-      </button>
-
-      <AnimatePresence>
-        {open && (
-          <motion.div
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: 10 }}
-            transition={{ duration: 0.15 }}
-            className="absolute top-full left-0 mt-2 w-48 bg-card border border-border rounded-xl shadow-xl overflow-hidden z-50 py-1"
-          >
-            {visibleChildren.map((child) => (
-              <Link
-                key={child.path}
-                to={child.path}
-                onClick={() => setOpen(false)}
-                className={cn(
-                  "block px-4 py-2.5 text-sm transition-colors",
-                  location.pathname === child.path
-                    ? "bg-muted text-foreground font-semibold"
-                    : "text-muted-foreground hover:bg-muted/50 hover:text-foreground"
-                )}
-              >
-                {child.label}
-              </Link>
-            ))}
-          </motion.div>
-        )}
-      </AnimatePresence>
-    </div>
-  );
-}
-
-function NavBar() {
-  const { user, logout, role } = useAuth();
-  const location = useLocation();
-  const navigate = useNavigate();
-  const [mobileOpen, setMobileOpen] = useState(false);
-  const [userMenuOpen, setUserMenuOpen] = useState(false);
-  const userMenuRef = useRef(null);
-
-  const visibleItems = NAV_ITEMS.filter((item) => item.roles.includes(role));
-
-  useEffect(() => {
-    const handleClickOutside = (e) => {
-      if (userMenuRef.current && !userMenuRef.current.contains(e.target)) setUserMenuOpen(false);
-    };
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, []);
-
-  const handleLogout = () => {
-    logout();
-    navigate('/login');
-  };
-
-  return (
-    <nav className="w-full bg-background/80 backdrop-blur-lg border-b border-border shadow-sm sticky top-0 z-40">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex justify-between items-center h-[64px]">
-          {/* Logo */}
-          <Link to="/" className="flex items-center gap-1 shrink-0 group">
-            <img
-              src={logo}
-              alt="PeoplePay360 logo"
-              className="w-9 h-9 rounded-xl object-cover shadow-md shadow-primary/20 group-hover:scale-105 transition-transform"
-            />
-            <span className="text-foreground font-extrabold text-lg tracking-tight">
-              PeoplePay<span className="text-primary/70">360</span>
-            </span>
-          </Link>
-
-          {/* Desktop Nav */}
-          <div className="hidden md:flex items-center gap-4 flex-1 ml-8">
-            {visibleItems.map((item) => {
-              const isActive = location.pathname.startsWith(item.path);
-              return <DropdownMenu key={item.path} item={item} isActive={isActive} role={role} />;
-            })}
-          </div>
-
-          {/* Right: User Info + Hamburger */}
-          <div className="flex items-center gap-3">
-            {/* User Menu Desktop */}
-            <div ref={userMenuRef} className="relative hidden md:block">
-              <button
-                onClick={() => setUserMenuOpen(!userMenuOpen)}
-                className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-muted/50 hover:bg-muted border border-border transition-colors"
-              >
-                <UserCircle className="w-6 h-6 text-muted-foreground" />
-                <div className="text-left">
-                  <p className="text-sm text-foreground font-semibold leading-none">{user?.name || user?.email}</p>
-                  <p className="text-[11px] text-muted-foreground mt-1 leading-none">{user?.email}</p>
-                </div>
-                <ChevronDown className={`w-4 h-4 text-muted-foreground transition-transform ${userMenuOpen ? 'rotate-180' : ''}`} />
-              </button>
-
-              <AnimatePresence>
-                {userMenuOpen && (
-                  <motion.div
-                    initial={{ opacity: 0, y: 10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, y: 10 }}
-                    transition={{ duration: 0.15 }}
-                    className="absolute right-0 top-full mt-2 w-56 bg-card border border-border rounded-2xl shadow-xl overflow-hidden z-50 py-1"
-                  >
-                    <div className="px-4 py-3 border-b border-border bg-muted/30">
-                      <p className="text-sm font-bold text-foreground">{user?.name || 'User'}</p>
-                      <p className="text-xs text-muted-foreground mt-0.5">{user?.email}</p>
-                      <div className="mt-2 inline-flex px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-primary/10 text-primary border border-primary/20">
-                        {role?.replace(/_/g, ' ')}
-                      </div>
-                    </div>
-                    <button
-                      onClick={() => { setUserMenuOpen(false); navigate('/change-password'); }}
-                      className="w-full flex items-center gap-2 px-4 py-3 text-sm text-foreground hover:bg-muted transition text-left font-medium border-b border-border"
-                    >
-                      <KeyRound className="w-4 h-4 text-muted-foreground" />
-                      Change Password
-                    </button>
-                    <button
-                      onClick={handleLogout}
-                      className="w-full flex items-center gap-2 px-4 py-3 text-sm text-destructive hover:bg-destructive/10 transition text-left font-medium"
-                    >
-                      <LogOut className="w-4 h-4" />
-                      Sign Out
-                    </button>
-                  </motion.div>
-                )}
-              </AnimatePresence>
-            </div>
-
-            {/* Mobile Hamburger */}
-            <button
-              className="md:hidden p-2 text-slate-400 hover:text-white hover:bg-slate-800 rounded-lg transition"
-              onClick={() => setMobileOpen(!mobileOpen)}
-              aria-label="Toggle menu"
-            >
-              {mobileOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
-            </button>
-          </div>
-        </div>
-      </div>
-
-      {/* Mobile Menu */}
-      {mobileOpen && (
-        <div className="md:hidden bg-slate-900 border-t border-slate-700 px-4 pt-3 pb-4 space-y-1">
-          {visibleItems.map((item) => {
-            const Icon = item.icon;
-            return (
-              <div key={item.path}>
-                <p className="flex items-center gap-2 px-3 py-2 text-xs font-bold text-slate-400 uppercase tracking-wider">
-                  <Icon className="w-3.5 h-3.5" />
-                  {item.label}
-                </p>
-                {(item.children || [{ path: item.path, label: item.label }])
-                  .filter((child) => !child.roles || child.roles.includes(role))
-                  .map((child) => (
-                  <Link
-                    key={child.path}
-                    to={child.path}
-                    onClick={() => setMobileOpen(false)}
-                    className={`block px-6 py-2 text-sm rounded-lg transition ${location.pathname === child.path
-                      ? 'bg-white/10 text-white font-semibold'
-                      : 'text-slate-400 hover:text-white hover:bg-white/5'
-                      }`}
-                  >
-                    {child.label}
-                  </Link>
-                ))}
-              </div>
-            );
-          })}
-          <div className="border-t border-slate-700 pt-3 mt-3">
-            <button
-              onClick={() => { setMobileOpen(false); navigate('/change-password'); }}
-              className="w-full flex items-center gap-2 px-3 py-2 text-sm text-slate-300 hover:text-white hover:bg-white/5 rounded-lg transition text-left"
-            >
-              <KeyRound className="w-4 h-4" />
-              Change Password
-            </button>
-            <button
-              onClick={handleLogout}
-              className="w-full flex items-center gap-2 px-3 py-2 text-sm text-red-400 hover:bg-red-900/20 rounded-lg transition"
-            >
-              <LogOut className="w-4 h-4" />
-              Sign Out
-            </button>
-          </div>
-        </div>
-      )}
-
-    </nav>
-  );
-}
 
 function ProtectedRoute({ children }) {
   const { isAuthenticated } = useAuth();
@@ -340,11 +79,12 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-background font-sans text-foreground selection:bg-primary/20">
-      {isAuthenticated && <NavBar />}
+      <div className={isAuthenticated ? 'md:flex' : ''}>
+        {isAuthenticated && <Sidebar />}
 
-      <main className={isAuthenticated ? 'max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8' : ''}>
-        <AnimatePresence mode="wait">
-          <Routes location={location} key={location.pathname}>
+        <main className={isAuthenticated ? 'flex-1 min-w-0 max-w-full overflow-x-hidden px-4 sm:px-6 lg:px-8 py-8' : ''}>
+          <AnimatePresence mode="wait">
+            <Routes location={location} key={location.pathname}>
             <Route path="/login" element={<AnimatedRoute><LoginPage /></AnimatedRoute>} />
             <Route path="/change-password" element={<ProtectedRoute><AnimatedRoute><ChangePassword /></AnimatedRoute></ProtectedRoute>} />
 
@@ -384,9 +124,10 @@ export default function App() {
             <Route path="/dashboard" element={<RoleRoute roles={ROLES.hrAndPayroll}><AnimatedRoute><Dashboard /></AnimatedRoute></RoleRoute>} />
 
             <Route path="*" element={<Navigate to="/" replace />} />
-          </Routes>
-        </AnimatePresence>
-      </main>
+            </Routes>
+          </AnimatePresence>
+        </main>
+      </div>
 
       {isAuthenticated && <AiCopilotWidget />}
       {isAuthenticated && <OnboardingTour />}
