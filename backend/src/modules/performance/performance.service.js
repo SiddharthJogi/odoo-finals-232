@@ -55,4 +55,20 @@ async function listEmployeeReviews(employeeId, user) {
   return listReviews({ employeeId, status: 'approved', limit: 50, offset: 0 });
 }
 
-module.exports = { calculatePay, listReviews, getReview, createReview, updateReview, changeStatus, listRules, createRule, updateRule, listEmployeeReviews };
+// ───────────── Payroll integration ─────────────
+// The payroll module needs to know "does this employee have an approved bonus for this
+// period, and record that it was paid" — it calls these instead of reaching into
+// performance.repository directly, so the repository stays private to this module.
+async function findApprovedPerformancePay(employeeId, periodStart, periodEnd) {
+  return repo.findApprovedPerformancePay(employeeId, periodStart, periodEnd);
+}
+
+async function recordPayrollAdjustment(data, client) {
+  return repo.insertAdjustment(data, client);
+}
+
+module.exports = {
+  calculatePay, listReviews, getReview, createReview, updateReview, changeStatus,
+  listRules, createRule, updateRule, listEmployeeReviews,
+  findApprovedPerformancePay, recordPayrollAdjustment,
+};

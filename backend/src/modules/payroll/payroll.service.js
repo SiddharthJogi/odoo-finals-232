@@ -3,12 +3,12 @@ const { computePayslip } = require('./ruleEngine');
 const hrCoreService = require('../hr-core/hrCore.service');
 const db = require('../../db');
 const { PayrollError, ValidationError, NotFoundError } = require('../../shared/errors');
-const performanceRepo = require('../performance/performance.repository');
+const performanceService = require('../performance/performance.service');
 
 // An approved performance review paid out for the period is added as its own
 // allowance line, on top of (never instead of) the contract's joining bonus.
 async function getPerformanceBonus(employeeId, periodStart, periodEnd, wage) {
-  const review = await performanceRepo.findApprovedPerformancePay(employeeId, periodStart, periodEnd);
+  const review = await performanceService.findApprovedPerformancePay(employeeId, periodStart, periodEnd);
   if (!review) return null;
   const amount = Number(review.performance_pay || 0);
   if (amount <= 0) return null;
@@ -218,7 +218,7 @@ async function createPayrun(data, createdBy) {
       }
 
       if (performanceBonus) {
-        await performanceRepo.insertAdjustment({
+        await performanceService.recordPayrollAdjustment({
           payslip_id: payslip.id,
           employee_id: empId,
           review_id: performanceBonus.review.id,
@@ -353,7 +353,7 @@ async function transitionPayrun(payrunId, targetStatus) {
           }, client);
         }
         if (performanceBonus) {
-          await performanceRepo.insertAdjustment({
+          await performanceService.recordPayrollAdjustment({
             payslip_id: payslip.id,
             employee_id: payslip.employee_id,
             review_id: performanceBonus.review.id,
