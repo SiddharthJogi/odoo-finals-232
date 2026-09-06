@@ -39,6 +39,13 @@ const listRules = asyncHandler(async (req, res) => {
   res.json(rules);
 });
 
+const listPerformanceRules = asyncHandler(async (req, res) => {
+  const structureId = parseInt(req.query.structure_id, 10);
+  if (!structureId) return res.status(400).json({ error: 'structure_id query param required' });
+  const rules = await service.listPerformanceRulesByStructure(structureId);
+  res.json(rules);
+});
+
 const createRule = asyncHandler(async (req, res) => {
   const data = createRuleSchema.parse(req.body);
   const rule = await service.createRule(data);
@@ -138,6 +145,7 @@ module.exports = {
   createStructure,
   updateStructure,
   listRules,
+  listPerformanceRules,
   createRule,
   updateRule,
   deleteRule,

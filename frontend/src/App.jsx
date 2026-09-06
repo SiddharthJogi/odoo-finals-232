@@ -32,6 +32,7 @@ import PayrunWizard from './modules/payroll/PayrunWizard';
 import PayslipView from './modules/payroll/PayslipView';
 import Structures from './modules/payroll/Structures';
 import Rules from './modules/payroll/Rules';
+import PerformancePage from './modules/performance/PerformancePage';
 
 // Module pages — Dev 4
 import Dashboard from './modules/dashboard/Dashboard';
@@ -385,6 +386,7 @@ export default function App() {
             <Route path="/payroll/structures" element={<RoleRoute roles={ROLES.payroll}><AnimatedRoute><Structures /></AnimatedRoute></RoleRoute>} />
             <Route path="/payroll/rules" element={<RoleRoute roles={ROLES.payroll}><AnimatedRoute><Rules /></AnimatedRoute></RoleRoute>} />
             <Route path="/payroll/payslips/:id" element={<RoleRoute roles={ROLES.payroll}><AnimatedRoute><PayslipView /></AnimatedRoute></RoleRoute>} />
+            <Route path="/performance" element={<RoleRoute roles={ROLES.all}><AnimatedRoute><PerformancePage /></AnimatedRoute></RoleRoute>} />
 
             {/* Dev 4: Dashboard */}
             <Route path="/dashboard" element={<RoleRoute roles={ROLES.hrAndPayroll}><AnimatedRoute><Dashboard /></AnimatedRoute></RoleRoute>} />

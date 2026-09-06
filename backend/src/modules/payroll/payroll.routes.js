@@ -13,6 +13,7 @@ router.put('/structures/:id', authenticate, requireRole('admin', 'hr_manager', '
 
 // ───────────── Rules ─────────────
 router.get('/rules', authenticate, requireRole('admin', 'hr_manager', 'hr_payroll_manager', 'hr_payroll_user'), ctrl.listRules);
+router.get('/performance-rules', authenticate, requireRole('admin', 'hr_manager', 'hr_payroll_manager', 'hr_payroll_user', 'employee'), ctrl.listPerformanceRules);
 router.post('/rules', authenticate, requireRole('admin', 'hr_manager', 'hr_payroll_manager'), ctrl.createRule);
 router.put('/rules/:id', authenticate, requireRole('admin', 'hr_manager', 'hr_payroll_manager'), ctrl.updateRule);
 router.delete('/rules/:id', authenticate, requireRole('admin', 'hr_manager', 'hr_payroll_manager'), ctrl.deleteRule);
