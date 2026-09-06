@@ -1,8 +1,11 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
+import { ChevronLeft, ChevronRight } from 'lucide-react';
 import client from '../../api/client';
 import { useAuth } from '../../auth/AuthContext';
 import { useToast } from '../../components/Toast';
+
+const PAGE_SIZE = 20;
 
 const STATUS_LABELS = {
   active: 'Active',
@@ -24,6 +27,7 @@ export default function ContractList() {
   const [contracts, setContracts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState('all');
+  const [page, setPage] = useState(1);
   const [updatingStatusId, setUpdatingStatusId] = useState(null);
   const canManage = ['admin', 'hr_manager'].includes(role);
 
@@ -53,6 +57,14 @@ export default function ContractList() {
   const visibleContracts = filter === 'all'
     ? contracts
     : contracts.filter((contract) => contract.status === filter);
+
+  const totalPages = Math.max(1, Math.ceil(visibleContracts.length / PAGE_SIZE));
+  const currentPage = Math.min(page, totalPages);
+  const pagedContracts = visibleContracts.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
+
+  useEffect(() => {
+    setPage(1);
+  }, [filter]);
 
   return (
     <div>
@@ -95,7 +107,7 @@ export default function ContractList() {
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
-              {visibleContracts.map((contract) => (
+              {pagedContracts.map((contract) => (
                 <tr key={contract.id} className="hover:bg-gray-50 transition">
                   <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
                     {contract.employee_name || `Employee #${contract.employee_id}`}
@@ -160,6 +172,32 @@ export default function ContractList() {
               ))}
             </tbody>
           </table>
+        )}
+
+        {!loading && visibleContracts.length > 0 && (
+          <div className="flex items-center justify-between px-6 py-3 border-t border-gray-200 bg-gray-50">
+            <p className="text-xs text-gray-500">
+              Page {currentPage} of {totalPages}
+            </p>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setPage((p) => Math.max(1, p - 1))}
+                disabled={currentPage <= 1}
+                className="flex items-center gap-1 text-xs font-semibold text-gray-600 bg-white border border-gray-300 rounded-lg px-2.5 py-1.5 disabled:opacity-40 disabled:cursor-not-allowed hover:bg-gray-100 transition"
+              >
+                <ChevronLeft className="w-3.5 h-3.5" />
+                Prev
+              </button>
+              <button
+                onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                disabled={currentPage >= totalPages}
+                className="flex items-center gap-1 text-xs font-semibold text-gray-600 bg-white border border-gray-300 rounded-lg px-2.5 py-1.5 disabled:opacity-40 disabled:cursor-not-allowed hover:bg-gray-100 transition"
+              >
+                Next
+                <ChevronRight className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          </div>
         )}
       </div>
     </div>
