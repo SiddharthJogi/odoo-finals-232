@@ -356,11 +356,11 @@ async function findScheduleById(id) {
   return rows[0] || null;
 }
 
-async function insertSchedule({ name, calendarType, gracePeriodMinutes, overtimeBufferMinutes, targetWeeklyHours }) {
+async function insertSchedule({ name, calendarType, gracePeriodMinutes, overtimeBufferMinutes, targetWeeklyHours, flexBufferMinutes }) {
   const { rows } = await db.query(
-    `INSERT INTO working_schedules (name, calendar_type, grace_period_minutes, overtime_buffer_minutes, target_weekly_hours)
-     VALUES ($1, $2, $3, $4, $5) RETURNING *`,
-    [name, calendarType, gracePeriodMinutes ?? 15, overtimeBufferMinutes ?? 15, targetWeeklyHours || null]
+    `INSERT INTO working_schedules (name, calendar_type, grace_period_minutes, overtime_buffer_minutes, target_weekly_hours, flex_buffer_minutes)
+     VALUES ($1, $2, $3, $4, $5, $6) RETURNING *`,
+    [name, calendarType, gracePeriodMinutes ?? 15, overtimeBufferMinutes ?? 15, targetWeeklyHours || null, flexBufferMinutes ?? 60]
   );
   return rows[0];
 }
@@ -382,7 +382,7 @@ async function insertScheduleLine({ scheduleId, dayOfWeek, startTime, endTime, b
   return rows[0];
 }
 
-async function updateSchedule(id, { name, calendarType, lines, gracePeriodMinutes, overtimeBufferMinutes, targetWeeklyHours }) {
+async function updateSchedule(id, { name, calendarType, lines, gracePeriodMinutes, overtimeBufferMinutes, targetWeeklyHours, flexBufferMinutes }) {
   const client = await db.getClient();
   try {
     await client.query('BEGIN');
@@ -392,10 +392,11 @@ async function updateSchedule(id, { name, calendarType, lines, gracePeriodMinute
            calendar_type = COALESCE($2, calendar_type),
            grace_period_minutes = COALESCE($3, grace_period_minutes),
            overtime_buffer_minutes = COALESCE($4, overtime_buffer_minutes),
-           target_weekly_hours = COALESCE($5, target_weekly_hours)
-       WHERE id = $6 AND status = 'active'
+           target_weekly_hours = COALESCE($5, target_weekly_hours),
+           flex_buffer_minutes = COALESCE($6, flex_buffer_minutes)
+       WHERE id = $7 AND status = 'active'
        RETURNING *`,
-      [name || null, calendarType || null, gracePeriodMinutes ?? null, overtimeBufferMinutes ?? null, targetWeeklyHours || null, id]
+      [name || null, calendarType || null, gracePeriodMinutes ?? null, overtimeBufferMinutes ?? null, targetWeeklyHours || null, flexBufferMinutes ?? null, id]
     );
     if (!rows[0]) {
       await client.query('ROLLBACK');

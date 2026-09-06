@@ -31,6 +31,7 @@ export default function Requests() {
   const [responsibleId, setResponsibleId] = useState('');
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
+  const [leaveMode, setLeaveMode] = useState('full_day'); // full_day, half_morning, half_afternoon
   const [duration, setDuration] = useState(1);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
@@ -41,6 +42,36 @@ export default function Requests() {
     fetchRequests();
     fetchModalOptions();
   }, []);
+
+  // Auto calculate duration in working days (excluding weekends) & handle half-day mode
+  useEffect(() => {
+    if (leaveMode === 'half_morning' || leaveMode === 'half_afternoon') {
+      setDuration(0.5);
+      if (startDate) {
+        setEndDate(startDate);
+      }
+      return;
+    }
+
+    if (startDate && endDate) {
+      const [sY, sM, sD] = startDate.split('T')[0].split('-').map(Number);
+      const [eY, eM, eD] = endDate.split('T')[0].split('-').map(Number);
+      const start = new Date(sY, sM - 1, sD, 0, 0, 0);
+      const end = new Date(eY, eM - 1, eD, 0, 0, 0);
+      if (end >= start) {
+        let workingDays = 0;
+        const cur = new Date(start);
+        while (cur <= end) {
+          const day = cur.getDay(); // 0 = Sun, 6 = Sat
+          if (day !== 0 && day !== 6) {
+            workingDays++;
+          }
+          cur.setDate(cur.getDate() + 1);
+        }
+        setDuration(workingDays);
+      }
+    }
+  }, [startDate, endDate, leaveMode]);
 
   const fetchRequests = async () => {
     setLoading(true);
@@ -87,16 +118,14 @@ export default function Requests() {
   // Auto calculate duration in working days (excluding weekends)
   useEffect(() => {
     if (startDate && endDate) {
-      const start = new Date(startDate);
-      const end = new Date(endDate);
+      const [sY, sM, sD] = startDate.split('T')[0].split('-').map(Number);
+      const [eY, eM, eD] = endDate.split('T')[0].split('-').map(Number);
+      const start = new Date(sY, sM - 1, sD, 0, 0, 0);
+      const end = new Date(eY, eM - 1, eD, 0, 0, 0);
       if (end >= start) {
         let workingDays = 0;
         const cur = new Date(start);
-        cur.setHours(0, 0, 0, 0);
-        const last = new Date(end);
-        last.setHours(0, 0, 0, 0);
-
-        while (cur <= last) {
+        while (cur <= end) {
           const day = cur.getDay(); // 0 = Sun, 6 = Sat
           if (day !== 0 && day !== 6) {
             workingDays++;
@@ -132,7 +161,7 @@ export default function Requests() {
       setStartDate('');
       setEndDate('');
       addToast('Time off request submitted successfully', 'success');
-      fetchRequests();
+      await fetchRequests();
     } catch (err) {
       const msg = err.response?.data?.error || 'Failed to submit leave request';
       setError(msg);
@@ -176,6 +205,18 @@ export default function Requests() {
     return r.status === activeTab;
   });
 
+  const getIsoDateString = (val) => {
+    if (!val) return '';
+    if (typeof val === 'string') return val.split('T')[0];
+    if (val instanceof Date) {
+      const y = val.getFullYear();
+      const m = String(val.getMonth() + 1).padStart(2, '0');
+      const d = String(val.getDate()).padStart(2, '0');
+      return `${y}-${m}-${d}`;
+    }
+    return '';
+  };
+
   const getSelectedTypeObj = () => types.find((t) => t.id.toString() === selectedType);
   const getSelectedTypeAlloc = () => {
     const targetEmpId = selectedEmployeeId || user?.employeeId;
@@ -184,7 +225,7 @@ export default function Requests() {
       (a) => a.type_id.toString() === selectedType && a.employee_id.toString() === targetEmpId.toString()
     );
     if (empAllocations.length === 0) return null;
-    return empAllocations.reduce((sum, a) => sum + Number(a.remaining || 0), 0);
+    return empAllocations.reduce((sum, a) => sum + Number(a.remaining !== undefined ? a.remaining : (Number(a.allocated) - Number(a.taken || 0))), 0);
   };
   const pendingCount = requests.filter((r) => r.status === 'draft').length;
   const calendarDays = (() => {
@@ -197,20 +238,34 @@ export default function Requests() {
       return new Date(year, month, index - firstDay + 1);
     });
   })();
-  const calendarRequests = requests.filter((request) => request.status !== 'refused' && request.start_date <= `${calendarMonth.getFullYear()}-${String(calendarMonth.getMonth() + 1).padStart(2, '0')}-${String(new Date(calendarMonth.getFullYear(), calendarMonth.getMonth() + 1, 0).getDate()).padStart(2, '0')}` && request.end_date >= `${calendarMonth.getFullYear()}-${String(calendarMonth.getMonth() + 1).padStart(2, '0')}-01`);
+  const calendarRequests = requests.filter((request) => {
+    if (request.status === 'refused') return false;
+    const startStr = getIsoDateString(request.start_date);
+    const endStr = getIsoDateString(request.end_date);
+    const monthStart = `${calendarMonth.getFullYear()}-${String(calendarMonth.getMonth() + 1).padStart(2, '0')}-01`;
+    const lastDayOfMonth = new Date(calendarMonth.getFullYear(), calendarMonth.getMonth() + 1, 0).getDate();
+    const monthEnd = `${calendarMonth.getFullYear()}-${String(calendarMonth.getMonth() + 1).padStart(2, '0')}-${String(lastDayOfMonth).padStart(2, '0')}`;
+    return startStr <= monthEnd && endStr >= monthStart;
+  });
+
+  const handleDayClick = (date) => {
+    if (!date) return;
+    const dateString = getIsoDateString(date);
+    setStartDate(dateString);
+    setEndDate(dateString);
+    fetchModalOptions();
+    setShowModal(true);
+  };
+
   const requestsForDay = (date) => {
     const dayOfWeek = date.getDay(); // 0 = Sun, 6 = Sat
     if (dayOfWeek === 0 || dayOfWeek === 6) return []; // Exclude weekends from displaying leave chips
-    const dateString = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
-    return calendarRequests.filter((request) => request.start_date <= dateString && request.end_date >= dateString);
-  };
-  const handleDayClick = (date) => {
-    if (date.getDay() === 0 || date.getDay() === 6) return; // weekends can't be requested off
-    const dateString = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
-    fetchModalOptions();
-    setStartDate(dateString);
-    setEndDate(dateString);
-    setShowModal(true);
+    const dateString = getIsoDateString(date);
+    return calendarRequests.filter((request) => {
+      const startStr = getIsoDateString(request.start_date);
+      const endStr = getIsoDateString(request.end_date);
+      return startStr <= dateString && endStr >= dateString;
+    });
   };
 
   return (
@@ -268,13 +323,28 @@ export default function Requests() {
                     key={date ? date.toISOString() : `empty-${index}`}
                     onClick={date && !isWeekend ? () => handleDayClick(date) : undefined}
                     title={date && !isWeekend ? 'Click to request leave for this date' : date ? 'Weekend — not a working day' : undefined}
-                    className={`min-h-32 border-r border-b border-border p-2 last:border-r-0 transition-colors ${
-                      isWeekend ? 'bg-muted/30' : date ? 'cursor-pointer hover:bg-blue-50' : ''
+                    className={`min-h-32 border-r border-b border-border p-2 last:border-r-0 group transition-colors ${
+                      isWeekend ? 'bg-muted/30' : date ? 'cursor-pointer hover:bg-blue-50/50' : ''
                     }`}
                   >
                     {date && <>
-                      <span className={`inline-flex w-6 h-6 items-center justify-center rounded-full text-xs font-bold ${date.toDateString() === new Date().toDateString() ? 'bg-blue-600 text-white' : 'text-muted-foreground'}`}>{date.getDate()}</span>
-                      {isWeekend && <span className="ml-1.5 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground/70">Weekend</span>}
+                      <div className="flex items-center justify-between">
+                        <span className={`inline-flex w-6 h-6 items-center justify-center rounded-full text-xs font-bold ${date.toDateString() === new Date().toDateString() ? 'bg-blue-600 text-white' : 'text-muted-foreground'}`}>{date.getDate()}</span>
+                        {!isWeekend && (
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleDayClick(date);
+                            }}
+                            title={`Request leave for ${getIsoDateString(date)}`}
+                            className="opacity-0 group-hover:opacity-100 inline-flex items-center justify-center w-5 h-5 rounded bg-blue-600 text-white hover:bg-blue-700 font-bold text-xs shadow-xs transition-all"
+                          >
+                            <Plus className="w-3.5 h-3.5" />
+                          </button>
+                        )}
+                        {isWeekend && <span className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground/70">Weekend</span>}
+                      </div>
                       <div className="mt-2 space-y-1">
                         {requestsForDay(date).map((request) => (
                           <div key={`${request.id}-${date.toISOString()}`} title={`${request.employee_name || `Employee #${request.employee_id}`} · ${request.department_name || 'No department'}`} className={`rounded-md px-1.5 py-1 text-[10px] leading-tight font-semibold truncate ${request.status === 'approved' ? 'bg-emerald-100 text-emerald-800 border border-emerald-200' : 'bg-amber-100 text-amber-800 border border-amber-200'}`}>
@@ -468,6 +538,30 @@ export default function Requests() {
                 </div>
               )}
 
+              <div>
+                <label className="block text-xs font-semibold text-gray-600 mb-1">Leave Duration Mode</label>
+                <div className="grid grid-cols-3 gap-2">
+                  {[
+                    { id: 'full_day', label: 'Full Day(s)' },
+                    { id: 'half_morning', label: 'Half Day (Morning)' },
+                    { id: 'half_afternoon', label: 'Half Day (Afternoon)' },
+                  ].map((mode) => (
+                    <button
+                      key={mode.id}
+                      type="button"
+                      onClick={() => setLeaveMode(mode.id)}
+                      className={`px-2 py-2 rounded-xl text-[11px] font-semibold border transition text-center ${
+                        leaveMode === mode.id
+                          ? 'bg-blue-600 text-white border-blue-600 shadow-xs'
+                          : 'bg-white text-gray-700 border-gray-200 hover:bg-gray-50'
+                      }`}
+                    >
+                      {mode.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block text-xs font-semibold text-gray-600 mb-1">Start Date</label>
@@ -475,7 +569,10 @@ export default function Requests() {
                     type="date"
                     required
                     value={startDate}
-                    onChange={(e) => setStartDate(e.target.value)}
+                    onChange={(e) => {
+                      setStartDate(e.target.value);
+                      if (leaveMode !== 'full_day') setEndDate(e.target.value);
+                    }}
                     className="w-full text-sm border-gray-300 rounded-xl px-3 py-2 border focus:ring-blue-500"
                   />
                 </div>
@@ -484,9 +581,10 @@ export default function Requests() {
                   <input
                     type="date"
                     required
+                    disabled={leaveMode !== 'full_day'}
                     value={endDate}
                     onChange={(e) => setEndDate(e.target.value)}
-                    className="w-full text-sm border-gray-300 rounded-xl px-3 py-2 border focus:ring-blue-500"
+                    className="w-full text-sm border-gray-300 rounded-xl px-3 py-2 border focus:ring-blue-500 disabled:bg-gray-100 disabled:text-gray-500"
                   />
                 </div>
               </div>
@@ -500,9 +598,11 @@ export default function Requests() {
                   required
                   readOnly
                   value={duration}
-                  className="w-full text-sm border-gray-300 rounded-xl px-3 py-2 border bg-gray-50 text-gray-600 cursor-not-allowed"
+                  className="w-full text-sm border-gray-300 rounded-xl px-3 py-2 border bg-gray-50 text-gray-600 cursor-not-allowed font-bold"
                 />
-                <p className="text-[11px] text-gray-400 mt-1">Auto-calculated from the selected dates — weekends are excluded automatically.</p>
+                <p className="text-[11px] text-gray-400 mt-1">
+                  {leaveMode === 'full_day' ? 'Auto-calculated working days (weekends excluded).' : 'Half-day partial leave locked to 0.5 days.'}
+                </p>
               </div>
 
               <div>

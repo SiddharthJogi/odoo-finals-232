@@ -248,9 +248,12 @@ async function insertPayslipLine(data, client) {
 // ───────────── Eligible Employees (for draft step) ─────────────
 async function findEligibleEmployees(structureId, periodStart, periodEnd, employeeTypeFilter) {
   let sql = `
-    SELECT DISTINCT e.id, e.name, e.email, e.employee_type, e.bank_account, c.id AS contract_id, c.wage
+    SELECT DISTINCT e.id, e.name, e.email, e.employee_type, e.bank_account, 
+      c.id AS contract_id, c.wage, TO_CHAR(c.start_date, 'YYYY-MM-DD') AS contract_start_date,
+      ws.name AS working_schedule_name
     FROM employees e
     JOIN contracts c ON c.employee_id = e.id
+    LEFT JOIN working_schedules ws ON e.schedule_id = ws.id
     WHERE e.status = 'active'
       AND c.status = 'active'
       AND c.structure_id = $1

@@ -25,7 +25,14 @@ const createTimeOffTypeSchema = z.object({
   unit: z.enum(['days', 'hours']).default('days'),
   requires_allocation: z.boolean().default(true),
   affects_payroll: z.boolean().default(false),
+  approval_type: z.enum(['manager', 'officer', 'no_approval']).default('manager'),
+  work_entry_type: z.string().default('leave'),
+  display_color: z.string().default('blue'),
+  notes: z.string().optional(),
+  status: z.enum(['active', 'archived']).default('active'),
 });
+
+const updateTimeOffTypeSchema = createTimeOffTypeSchema.partial();
 
 const createAllocationSchema = z.object({
   employee_id: z.number().int().positive(),
@@ -51,6 +58,7 @@ module.exports = {
   checkOutSchema,
   correctAttendanceSchema,
   createTimeOffTypeSchema,
+  updateTimeOffTypeSchema,
   createAllocationSchema,
   createTimeOffRequestSchema,
 };

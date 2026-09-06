@@ -5,59 +5,93 @@ const { ValidationError, NotFoundError } = require('../../shared/errors');
 function decorateAttendanceSchedule(att) {
   if (!att) return null;
 
-  // An employee with no assigned schedule has nothing to be compared against — don't
-  // silently borrow another schedule's hours (the old COALESCE(schedule_id, 1) fallback did).
-  if (!att.schedule_id) {
-    return { ...att, is_late: false, late_minutes: 0, overtime_hours: 0 };
-  }
-
   const checkInDate = att.check_in ? new Date(att.check_in) : null;
+  const checkOutDate = att.check_out ? new Date(att.check_out) : null;
   const graceMinutes = att.grace_period_minutes ?? 15;
   const overtimeBufferMinutes = att.overtime_buffer_minutes ?? 15;
+  const flexBufferMinutes = att.flex_buffer_minutes ?? 60;
+  const calendarType = att.calendar_type || 'standard';
+  const breakMins = Number(att.break_minutes || 0);
 
   let isLate = false;
   let lateMinutes = 0;
+  let isOvertime = false;
   let overtimeHours = 0;
+  let isFlexBuffered = false;
+  let flexOffsetMinutes = 0;
+  let workedHours = att.worked_hours ? Number(att.worked_hours) : 0;
 
-  if (checkInDate && att.scheduled_start) {
+  // Calculate actual net worked hours minus break duration
+  if (checkInDate && checkOutDate) {
+    const elapsedMs = checkOutDate.getTime() - checkInDate.getTime();
+    const netMins = Math.max(0, Math.floor(elapsedMs / 60000) - breakMins);
+    workedHours = Number((netMins / 60).toFixed(2));
+  }
+
+  // Handle Fixed / Shift Schedules with Timing Buffer Offset
+  if (checkInDate && att.scheduled_start && att.scheduled_end) {
     const [startH, startM] = att.scheduled_start.split(':').map(Number);
+    const [endH, endM] = att.scheduled_end.split(':').map(Number);
+
     const schedStart = new Date(checkInDate);
     schedStart.setHours(startH, startM, 0, 0);
 
-    const diffMs = checkInDate.getTime() - schedStart.getTime();
-    const diffMins = Math.floor(diffMs / 60000);
-
-    if (diffMins >= graceMinutes) {
-      isLate = true;
-      lateMinutes = diffMins;
-    }
-  }
-
-  if (att.check_out && att.scheduled_end && att.scheduled_start) {
-    const checkOutDate = new Date(att.check_out);
-    const [startH, startM] = att.scheduled_start.split(':').map(Number);
-    const [endH, endM] = att.scheduled_end.split(':').map(Number);
     const schedEnd = new Date(checkInDate || checkOutDate);
     schedEnd.setHours(endH, endM, 0, 0);
 
-    // Overnight/night shift: the shift's end time is numerically before its start time
-    // (e.g. 22:00 -> 06:00), so the scheduled end actually falls on the next calendar day.
     const isOvernightShift = endH * 60 + endM <= startH * 60 + startM;
     if (isOvernightShift) {
       schedEnd.setDate(schedEnd.getDate() + 1);
     }
 
-    const bufferedEnd = new Date(schedEnd.getTime() + overtimeBufferMinutes * 60000);
-    if (checkOutDate > bufferedEnd) {
-      overtimeHours = Number(((checkOutDate.getTime() - schedEnd.getTime()) / 3600000).toFixed(2));
+    const diffMs = checkInDate.getTime() - schedStart.getTime();
+    const diffMins = Math.floor(diffMs / 60000);
+
+    // Flex timing buffer calculation: shift required end time forward
+    let flexShiftMins = 0;
+    if (diffMins > graceMinutes) {
+      if (diffMins <= flexBufferMinutes) {
+        // Within flex timing buffer: shift required end time forward, no late penalty
+        isFlexBuffered = true;
+        flexOffsetMinutes = diffMins;
+        flexShiftMins = diffMins;
+      } else {
+        // Exceeds flex buffer: flag as late, cap flex shift at flexBufferMinutes
+        isLate = true;
+        lateMinutes = diffMins;
+        flexShiftMins = flexBufferMinutes;
+      }
+    }
+
+    const effectiveSchedEnd = new Date(schedEnd.getTime() + flexShiftMins * 60000);
+
+    // Overtime calculation past effective (shifted) schedule end
+    if (checkOutDate) {
+      const bufferedEnd = new Date(effectiveSchedEnd.getTime() + overtimeBufferMinutes * 60000);
+      if (checkOutDate > bufferedEnd) {
+        isOvertime = true;
+        overtimeHours = Number(((checkOutDate.getTime() - effectiveSchedEnd.getTime()) / 3600000).toFixed(2));
+      }
+    }
+  } else if (calendarType === 'flexible' || !att.scheduled_start) {
+    // Flexible Schedule: Evaluate against target daily hours (target_weekly_hours / 5 or 8h)
+    const targetDailyHours = att.target_weekly_hours ? Number(att.target_weekly_hours) / 5 : 8.0;
+    if (checkOutDate && workedHours > targetDailyHours) {
+      isOvertime = true;
+      overtimeHours = Number((workedHours - targetDailyHours).toFixed(2));
     }
   }
 
   return {
     ...att,
+    worked_hours: workedHours,
     is_late: isLate,
     late_minutes: lateMinutes,
+    is_overtime: isOvertime,
     overtime_hours: overtimeHours,
+    is_flex_buffered: isFlexBuffered,
+    flex_offset_minutes: flexOffsetMinutes,
+    flex_buffer_minutes: flexBufferMinutes,
   };
 }
 
@@ -193,12 +227,24 @@ async function correctAttendance(id, data, correctedBy) {
 }
 
 // ───────────── Time Off Types ─────────────
-async function listTimeOffTypes() {
-  return repo.findAllTimeOffTypes();
+async function listTimeOffTypes(filters = {}) {
+  return repo.findAllTimeOffTypes(filters);
+}
+
+async function getTimeOffType(id) {
+  const type = await repo.findTimeOffTypeById(id);
+  if (!type) throw new NotFoundError('Time Off Type', id);
+  return type;
 }
 
 async function createTimeOffType(data) {
   return repo.insertTimeOffType(data);
+}
+
+async function updateTimeOffType(id, data) {
+  const existing = await repo.findTimeOffTypeById(id);
+  if (!existing) throw new NotFoundError('Time Off Type', id);
+  return repo.updateTimeOffType(id, data);
 }
 
 // ───────────── Allocations ─────────────
@@ -220,11 +266,13 @@ async function listResponsibleUsers() {
 }
 
 function calculateWorkingDays(startDateStr, endDateStr) {
+  if (!startDateStr || !endDateStr) return 0;
   let count = 0;
-  const cur = new Date(startDateStr);
-  const end = new Date(endDateStr);
-  cur.setHours(0, 0, 0, 0);
-  end.setHours(0, 0, 0, 0);
+  const [sY, sM, sD] = startDateStr.split('T')[0].split('-').map(Number);
+  const [eY, eM, eD] = endDateStr.split('T')[0].split('-').map(Number);
+
+  const cur = new Date(sY, sM - 1, sD, 0, 0, 0);
+  const end = new Date(eY, eM - 1, eD, 0, 0, 0);
 
   while (cur <= end) {
     const dayOfWeek = cur.getDay(); // 0 = Sun, 6 = Sat
@@ -398,15 +446,58 @@ async function refuseTimeOffRequest(requestId, approvedBy) {
   }
 }
 
+async function getAttendanceSummary(filters = {}) {
+  const attendances = await listAttendances(filters);
+
+  let totalWorkedHours = 0;
+  let totalOvertimeHours = 0;
+  let lateCount = 0;
+  const employeeLateCounts = {};
+
+  for (const att of attendances) {
+    totalWorkedHours += Number(att.worked_hours || 0);
+    if (att.overtime_hours > 0) {
+      totalOvertimeHours += Number(att.overtime_hours || 0);
+    }
+    if (att.is_late) {
+      lateCount++;
+      const empId = att.employee_id;
+      employeeLateCounts[empId] = (employeeLateCounts[empId] || 0) + 1;
+    }
+  }
+
+  let totalDeductedDays = 0;
+  let totalDeductionEvents = 0;
+  for (const empId in employeeLateCounts) {
+    const lates = employeeLateCounts[empId];
+    const events = Math.floor(lates / 3);
+    totalDeductionEvents += events;
+    totalDeductedDays += events * 0.5;
+  }
+
+  return {
+    total_records: attendances.length,
+    total_worked_hours: Number(totalWorkedHours.toFixed(2)),
+    total_overtime_hours: Number(totalOvertimeHours.toFixed(2)),
+    late_count: lateCount,
+    deduction_events: totalDeductionEvents,
+    deducted_leave_days: Number(totalDeductedDays.toFixed(1)),
+  };
+}
+
 module.exports = {
+  decorateAttendanceSchedule,
   listAttendances,
   createAttendance,
   getActiveAttendance,
+  getAttendanceSummary,
   checkIn,
   checkOut,
   correctAttendance,
   listTimeOffTypes,
+  getTimeOffType,
   createTimeOffType,
+  updateTimeOffType,
   listAllocations,
   createAllocation,
   listTimeOffRequests,

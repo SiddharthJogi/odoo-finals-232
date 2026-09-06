@@ -22,12 +22,19 @@ async function seed() {
   `);
 
   // ─────────── Admin user ───────────
+  const { rows: adminEmpRows } = await db.query(
+    `INSERT INTO employees (name, email, job_position, bank_account, status)
+     VALUES ('System Admin', 'admin@peoplepay360.com', 'System Administrator', 'SYSADMINBANK001', 'active')
+     RETURNING id`
+  );
+  const adminEmpId = adminEmpRows[0].id;
+
   const adminHash = await bcrypt.hash('admin123', 10);
   await db.query(
-    `INSERT INTO users (email, password_hash, role_id)
-     VALUES ('admin@peoplepay360.com', $1, 1)
+    `INSERT INTO users (email, password_hash, role_id, employee_id)
+     VALUES ('admin@peoplepay360.com', $1, 1, $2)
      ON CONFLICT (email) DO NOTHING`,
-    [adminHash]
+    [adminHash, adminEmpId]
   );
   console.log('  ✓ Admin user created (admin@peoplepay360.com / admin123)');
 
@@ -99,7 +106,7 @@ async function seed() {
     { name: 'Deepika Reddy', email: 'deepika.reddy@company.com', dept: 0, job: 'DevOps Engineer', type: 'full_time', bank: 'KOTAK2233445566', wage: 75000 },
     { name: 'Arjun Mehta', email: 'arjun.mehta@company.com', dept: 1, job: 'HR Manager', type: 'full_time', bank: 'HDFC6677889900', wage: 70000 },
     { name: 'Sneha Iyer', email: 'sneha.iyer@company.com', dept: 1, job: 'HR Executive', type: 'full_time', bank: 'ICICI1234509876', wage: 45000 },
-    { name: 'Rohan Desai', email: 'rohan.desai@company.com', dept: 1, job: 'Recruiter', type: 'contract', bank: null, wage: 35000 },
+    { name: 'Rohan Desai', email: 'rohan.desai@company.com', dept: 1, job: 'Recruiter', type: 'contract', bank: 'AXIS3500099887', wage: 35000 },
     { name: 'Kavita Joshi', email: 'kavita.joshi@company.com', dept: 2, job: 'Finance Manager', type: 'full_time', bank: 'HDFC7788990011', wage: 90000 },
     { name: 'Amit Kulkarni', email: 'amit.kulkarni@company.com', dept: 2, job: 'Accountant', type: 'full_time', bank: 'SBI4455667788', wage: 55000 },
     { name: 'Neha Verma', email: 'neha.verma@company.com', dept: 2, job: 'Payroll Analyst', type: 'full_time', bank: 'AXIS1122009988', wage: 60000 },
