@@ -7,6 +7,7 @@ import {
   UserCircle,
   FileText,
   Calendar,
+  Award,
 } from 'lucide-react';
 
 // Single source of truth for top nav structure + role visibility, shared by the nav bar
@@ -89,6 +90,13 @@ export const NAV_ITEMS = [
       { path: '/payroll/structures', label: 'Salary Structures' },
       { path: '/payroll/rules', label: 'Salary Rules' },
     ],
+  },
+  {
+    path: '/performance',
+    label: 'Performance',
+    icon: Award,
+    roles: ['admin', 'hr_manager', 'hr_payroll_manager', 'hr_payroll_user', 'employee'],
+    description: 'Score project performance and turn approved points into a payroll bonus.',
   },
   {
     path: '/dashboard',

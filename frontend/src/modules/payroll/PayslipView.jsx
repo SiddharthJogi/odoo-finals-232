@@ -37,6 +37,22 @@ export default function PayslipView() {
     }
   };
 
+  const handleDownloadPDF = async () => {
+    try {
+      const response = await client.get(`/payroll/payslips/${id}/pdf`, { responseType: 'blob' });
+      const url = window.URL.createObjectURL(new Blob([response.data]));
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `payslip_${id}.pdf`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+    } catch (err) {
+      console.error('Error downloading PDF:', err);
+    }
+  };
+
   if (loading) {
     return (
       <div className="max-w-3xl mx-auto animate-pulse space-y-6">

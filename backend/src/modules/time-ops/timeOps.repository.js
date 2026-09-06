@@ -10,8 +10,12 @@ async function findAttendances(filters = {}) {
       e.schedule_id,
       sl.start_time AS scheduled_start,
       sl.end_time AS scheduled_end,
+      COALESCE(sl.break_minutes, 0) AS break_minutes,
+      ws.calendar_type,
+      ws.target_weekly_hours,
       ws.grace_period_minutes,
-      ws.overtime_buffer_minutes
+      ws.overtime_buffer_minutes,
+      COALESCE(ws.flex_buffer_minutes, 60) AS flex_buffer_minutes
     FROM attendances a
     LEFT JOIN employees e ON a.employee_id = e.id
     LEFT JOIN working_schedules ws ON ws.id = e.schedule_id
@@ -25,6 +29,15 @@ async function findAttendances(filters = {}) {
   if (filters.employee_id) {
     sql += ` AND a.employee_id = $${idx++}`;
     params.push(filters.employee_id);
+  }
+  if (filters.department_id) {
+    sql += ` AND e.department_id = $${idx++}`;
+    params.push(filters.department_id);
+  }
+  if (filters.search) {
+    sql += ` AND (e.name ILIKE $${idx} OR e.job_position ILIKE $${idx})`;
+    idx++;
+    params.push(`%${filters.search}%`);
   }
   if (filters.status) {
     sql += ` AND a.status = $${idx++}`;
@@ -52,8 +65,12 @@ async function findOpenAttendance(employeeId) {
        e.schedule_id,
        sl.start_time AS scheduled_start,
        sl.end_time AS scheduled_end,
+       COALESCE(sl.break_minutes, 0) AS break_minutes,
+       ws.calendar_type,
+       ws.target_weekly_hours,
        ws.grace_period_minutes,
-       ws.overtime_buffer_minutes
+       ws.overtime_buffer_minutes,
+       COALESCE(ws.flex_buffer_minutes, 60) AS flex_buffer_minutes
      FROM attendances a
      LEFT JOIN employees e ON a.employee_id = e.id
      LEFT JOIN working_schedules ws ON ws.id = e.schedule_id
@@ -106,26 +123,86 @@ async function updateAttendance(id, data, correctedBy) {
 }
 
 // ───────────── Time Off Types ─────────────
-async function findAllTimeOffTypes() {
-  const { rows } = await db.query('SELECT * FROM time_off_types ORDER BY id');
+async function findAllTimeOffTypes(filters = {}) {
+  let sql = 'SELECT * FROM time_off_types WHERE 1=1';
+  const params = [];
+  if (filters.search) {
+    params.push(`%${filters.search}%`);
+    sql += ` AND name ILIKE $${params.length}`;
+  }
+  sql += ' ORDER BY id';
+  const { rows } = await db.query(sql, params);
   return rows;
+}
+
+async function findTimeOffTypeById(id) {
+  const { rows } = await db.query('SELECT * FROM time_off_types WHERE id = $1', [id]);
+  return rows[0] || null;
 }
 
 async function insertTimeOffType(data) {
   const { rows } = await db.query(
-    `INSERT INTO time_off_types (name, unit, requires_allocation, affects_payroll)
-     VALUES ($1, $2, $3, $4) RETURNING *`,
-    [data.name, data.unit, data.requires_allocation, data.affects_payroll]
+    `INSERT INTO time_off_types (name, unit, requires_allocation, affects_payroll, approval_type, work_entry_type, display_color, notes, status)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING *`,
+    [
+      data.name,
+      data.unit || 'days',
+      data.requires_allocation ?? true,
+      data.affects_payroll ?? false,
+      data.approval_type || 'manager',
+      data.work_entry_type || 'leave',
+      data.display_color || 'blue',
+      data.notes || null,
+      data.status || 'active',
+    ]
   );
   return rows[0];
+}
+
+async function updateTimeOffType(id, data) {
+  const fields = [];
+  const params = [];
+  let idx = 1;
+
+  if (data.name !== undefined) { fields.push(`name = $${idx++}`); params.push(data.name); }
+  if (data.unit !== undefined) { fields.push(`unit = $${idx++}`); params.push(data.unit); }
+  if (data.requires_allocation !== undefined) { fields.push(`requires_allocation = $${idx++}`); params.push(data.requires_allocation); }
+  if (data.affects_payroll !== undefined) { fields.push(`affects_payroll = $${idx++}`); params.push(data.affects_payroll); }
+  if (data.approval_type !== undefined) { fields.push(`approval_type = $${idx++}`); params.push(data.approval_type); }
+  if (data.work_entry_type !== undefined) { fields.push(`work_entry_type = $${idx++}`); params.push(data.work_entry_type); }
+  if (data.display_color !== undefined) { fields.push(`display_color = $${idx++}`); params.push(data.display_color); }
+  if (data.notes !== undefined) { fields.push(`notes = $${idx++}`); params.push(data.notes); }
+  if (data.status !== undefined) { fields.push(`status = $${idx++}`); params.push(data.status); }
+
+  if (fields.length === 0) return findTimeOffTypeById(id);
+  params.push(id);
+
+  const { rows } = await db.query(
+    `UPDATE time_off_types SET ${fields.join(', ')} WHERE id = $${idx} RETURNING *`,
+    params
+  );
+  return rows[0] || null;
 }
 
 // ───────────── Allocations ─────────────
 async function findAllocations(filters = {}) {
   let sql = `
-    SELECT al.*, e.name AS employee_name, t.name AS type_name, t.unit AS type_unit
+    SELECT 
+      al.id,
+      al.employee_id,
+      al.type_id,
+      al.allocated,
+      al.taken,
+      al.status,
+      TO_CHAR(al.valid_from, 'YYYY-MM-DD') AS valid_from,
+      TO_CHAR(al.valid_to, 'YYYY-MM-DD') AS valid_to,
+      e.name AS employee_name, 
+      d.name AS department_name,
+      t.name AS type_name, 
+      t.unit AS type_unit
     FROM allocations al
     LEFT JOIN employees e ON al.employee_id = e.id
+    LEFT JOIN departments d ON e.department_id = d.id
     LEFT JOIN time_off_types t ON al.type_id = t.id
     WHERE 1=1
   `;
@@ -139,6 +216,10 @@ async function findAllocations(filters = {}) {
   if (filters.type_id) {
     sql += ` AND al.type_id = $${idx++}`;
     params.push(filters.type_id);
+  }
+  if (filters.search) {
+    sql += ` AND e.name ILIKE $${idx++}`;
+    params.push(`%${filters.search}%`);
   }
 
   sql += ' ORDER BY al.valid_from DESC';
@@ -200,7 +281,19 @@ async function restoreAllocation(allocationId, duration, client) {
 async function findTimeOffRequests(filters = {}) {
   let sql = `
     SELECT 
-      r.*, 
+      r.id,
+      r.employee_id,
+      r.type_id,
+      TO_CHAR(r.start_date, 'YYYY-MM-DD') AS start_date,
+      TO_CHAR(r.end_date, 'YYYY-MM-DD') AS end_date,
+      r.duration,
+      r.status,
+      r.is_deferred,
+      TO_CHAR(r.deferred_to_date, 'YYYY-MM-DD') AS deferred_to_date,
+      r.responsible_id,
+      r.deferral_reason,
+      r.created_at,
+      r.approved_by,
       e.name AS employee_name, 
       d.name AS department_name,
       t.name AS type_name, 
@@ -234,7 +327,19 @@ async function findTimeOffRequests(filters = {}) {
 async function findTimeOffRequestById(id) {
   const { rows } = await db.query(
     `SELECT 
-       r.*, 
+       r.id,
+       r.employee_id,
+       r.type_id,
+       TO_CHAR(r.start_date, 'YYYY-MM-DD') AS start_date,
+       TO_CHAR(r.end_date, 'YYYY-MM-DD') AS end_date,
+       r.duration,
+       r.status,
+       r.is_deferred,
+       TO_CHAR(r.deferred_to_date, 'YYYY-MM-DD') AS deferred_to_date,
+       r.responsible_id,
+       r.deferral_reason,
+       r.created_at,
+       r.approved_by,
        e.name AS employee_name, 
        t.name AS type_name, 
        t.unit AS type_unit,
@@ -306,10 +411,6 @@ async function updateTimeOffRequestStatus(id, status, approvedBy, client) {
   return rows[0] || null;
 }
 
-async function findTimeOffTypeById(id) {
-  const { rows } = await db.query('SELECT * FROM time_off_types WHERE id = $1', [id]);
-  return rows[0] || null;
-}
 
 async function countLateAttendances(employeeId) {
   const { rows } = await db.query(
@@ -346,7 +447,9 @@ module.exports = {
   updateAttendanceCheckOut,
   updateAttendance,
   findAllTimeOffTypes,
+  findTimeOffTypeById,
   insertTimeOffType,
+  updateTimeOffType,
   findAllocations,
   findAllocationForDeduction,
   insertAllocation,

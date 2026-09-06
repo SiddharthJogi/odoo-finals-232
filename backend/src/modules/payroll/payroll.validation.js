@@ -20,6 +20,7 @@ const createRuleSchema = z.object({
   amount: z.number().optional(),
   base_code: z.string().max(40).optional(),
   formula_text: z.string().max(500).optional(),
+  performance_based: z.boolean().nullable().optional(),
 });
 
 const createPayrunDraftSchema = z.object({

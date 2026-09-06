@@ -7,6 +7,7 @@ const {
   checkOutSchema,
   correctAttendanceSchema,
   createTimeOffTypeSchema,
+  updateTimeOffTypeSchema,
   createAllocationSchema,
   createTimeOffRequestSchema,
 } = require('./timeOps.validation');
@@ -23,6 +24,8 @@ const listAttendances = asyncHandler(async (req, res) => {
     status: req.query.status,
     date_from: req.query.date_from,
     date_to: req.query.date_to,
+    department_id: req.query.department_id ? parseInt(req.query.department_id, 10) : undefined,
+    search: req.query.search ? req.query.search.trim() : undefined,
   };
   const attendances = await service.listAttendances(filters);
   res.json(attendances);
@@ -38,6 +41,21 @@ const getActiveAttendance = asyncHandler(async (req, res) => {
   }
   const active = await service.getActiveAttendance(employeeId);
   res.json(active);
+});
+
+const getAttendanceSummary = asyncHandler(async (req, res) => {
+  let employeeId = req.query.employee_id ? parseInt(req.query.employee_id, 10) : undefined;
+  if (req.user.role === 'employee') {
+    employeeId = req.user.employeeId;
+  }
+  const filters = {
+    employee_id: employeeId,
+    status: req.query.status,
+    date_from: req.query.date_from,
+    date_to: req.query.date_to,
+  };
+  const summary = await service.getAttendanceSummary(filters);
+  res.json(summary);
 });
 
 const createAttendance = asyncHandler(async (req, res) => {
@@ -77,15 +95,27 @@ const correctAttendance = asyncHandler(async (req, res) => {
 });
 
 // ───────────── Time Off Types ─────────────
-const listTimeOffTypes = asyncHandler(async (_req, res) => {
-  const types = await service.listTimeOffTypes();
+const listTimeOffTypes = asyncHandler(async (req, res) => {
+  const filters = { search: req.query.search ? req.query.search.trim() : undefined };
+  const types = await service.listTimeOffTypes(filters);
   res.json(types);
+});
+
+const getTimeOffType = asyncHandler(async (req, res) => {
+  const type = await service.getTimeOffType(parseInt(req.params.id, 10));
+  res.json(type);
 });
 
 const createTimeOffType = asyncHandler(async (req, res) => {
   const data = createTimeOffTypeSchema.parse(req.body);
   const type = await service.createTimeOffType(data);
   res.status(201).json(type);
+});
+
+const updateTimeOffType = asyncHandler(async (req, res) => {
+  const data = updateTimeOffTypeSchema.parse(req.body);
+  const type = await service.updateTimeOffType(parseInt(req.params.id, 10), data);
+  res.json(type);
 });
 
 // ───────────── Allocations ─────────────
@@ -97,6 +127,7 @@ const listAllocations = asyncHandler(async (req, res) => {
   const filters = {
     employee_id: employeeId,
     type_id: req.query.type_id ? parseInt(req.query.type_id, 10) : undefined,
+    search: req.query.search ? req.query.search.trim() : undefined,
   };
   const allocations = await service.listAllocations(filters);
   res.json(allocations);
@@ -111,7 +142,7 @@ const createAllocation = asyncHandler(async (req, res) => {
 // ───────────── Time Off Requests ─────────────
 const listTimeOffRequests = asyncHandler(async (req, res) => {
   let employeeId = req.query.employee_id ? parseInt(req.query.employee_id, 10) : undefined;
-  if (req.user.role === 'employee') {
+  if (req.user.role === 'employee' && req.query.scope === 'mine') {
     employeeId = req.user.employeeId;
   }
   const filters = {
@@ -163,12 +194,15 @@ const refuseTimeOffRequest = asyncHandler(async (req, res) => {
 module.exports = {
   listAttendances,
   getActiveAttendance,
+  getAttendanceSummary,
   createAttendance,
   doCheckIn,
   doCheckOut,
   correctAttendance,
   listTimeOffTypes,
+  getTimeOffType,
   createTimeOffType,
+  updateTimeOffType,
   listAllocations,
   createAllocation,
   listTimeOffRequests,

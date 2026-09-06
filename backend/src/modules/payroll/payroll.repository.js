@@ -45,6 +45,16 @@ async function findRulesByStructure(structureId) {
   return rows;
 }
 
+async function findPerformanceRulesByStructure(structureId) {
+  const { rows } = await db.query(
+    `SELECT * FROM salary_rules
+     WHERE structure_id = $1 AND performance_based IS NOT NULL
+     ORDER BY sequence`,
+    [structureId]
+  );
+  return rows;
+}
+
 async function findRuleById(id) {
   const { rows } = await db.query('SELECT * FROM salary_rules WHERE id = $1', [id]);
   return rows[0] || null;
@@ -52,11 +62,12 @@ async function findRuleById(id) {
 
 async function insertRule(data) {
   const { rows } = await db.query(
-    `INSERT INTO salary_rules (structure_id, name, code, category, sequence, calc_method, amount, base_code, formula_text)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+    `INSERT INTO salary_rules (structure_id, name, code, category, sequence, calc_method, amount, base_code, formula_text, performance_based)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
      RETURNING *`,
     [data.structure_id, data.name, data.code, data.category, data.sequence,
-     data.calc_method, data.amount || null, data.base_code || null, data.formula_text || null]
+     data.calc_method, data.amount || null, data.base_code || null, data.formula_text || null,
+     data.performance_based ?? null]
   );
   return rows[0];
 }
@@ -248,9 +259,12 @@ async function insertPayslipLine(data, client) {
 // ───────────── Eligible Employees (for draft step) ─────────────
 async function findEligibleEmployees(structureId, periodStart, periodEnd, employeeTypeFilter) {
   let sql = `
-    SELECT DISTINCT e.id, e.name, e.email, e.employee_type, e.bank_account, c.id AS contract_id, c.wage
+    SELECT DISTINCT e.id, e.name, e.email, e.employee_type, e.bank_account, 
+      c.id AS contract_id, c.wage, TO_CHAR(c.start_date, 'YYYY-MM-DD') AS contract_start_date,
+      ws.name AS working_schedule_name
     FROM employees e
     JOIN contracts c ON c.employee_id = e.id
+    LEFT JOIN working_schedules ws ON e.schedule_id = ws.id
     WHERE e.status = 'active'
       AND c.status = 'active'
       AND c.structure_id = $1
@@ -283,6 +297,7 @@ module.exports = {
   insertStructure,
   updateStructure,
   findRulesByStructure,
+  findPerformanceRulesByStructure,
   findRuleById,
   insertRule,
   updateRule,

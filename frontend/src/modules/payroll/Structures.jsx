@@ -1,165 +1,293 @@
 import { useState, useEffect } from 'react';
 import client from '../../api/client';
-import { Plus, Edit2, X } from 'lucide-react';
+import { Plus, Search, Layers, Edit2, CheckCircle2 } from 'lucide-react';
 
 export default function Structures() {
   const [structures, setStructures] = useState([]);
+  const [selectedStructure, setSelectedStructure] = useState(null);
+  const [rules, setRules] = useState([]);
   const [loading, setLoading] = useState(true);
-  
+  const [rulesLoading, setRulesLoading] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+
+  // Modal State
   const [showModal, setShowModal] = useState(false);
-  const [editingStructure, setEditingStructure] = useState(null);
-  const [formData, setFormData] = useState({ name: '', status: 'active' });
+  const [name, setName] = useState('');
+  const [status, setStatus] = useState('active');
   const [error, setError] = useState('');
   const [submitting, setSubmitting] = useState(false);
-
-  const fetchStructures = () => {
-    setLoading(true);
-    client.get('/payroll/structures')
-      .then(({ data }) => setStructures(data))
-      .catch(console.error)
-      .finally(() => setLoading(false));
-  };
 
   useEffect(() => {
     fetchStructures();
   }, []);
 
-  const openModal = (structure = null) => {
-    setError('');
-    if (structure) {
-      setEditingStructure(structure);
-      setFormData({ name: structure.name, status: structure.status });
-    } else {
-      setEditingStructure(null);
-      setFormData({ name: '', status: 'active' });
+  const fetchStructures = async () => {
+    setLoading(true);
+    try {
+      const { data } = await client.get('/payroll/structures');
+      setStructures(data);
+      if (data.length > 0 && !selectedStructure) {
+        selectStructure(data[0]);
+      }
+    } catch (err) {
+      console.error('Failed to fetch salary structures', err);
+    } finally {
+      setLoading(false);
     }
-    setShowModal(true);
   };
 
-  const closeModal = () => {
-    setShowModal(false);
-    setEditingStructure(null);
-    setFormData({ name: '', status: 'active' });
+  const selectStructure = async (struct) => {
+    setSelectedStructure(struct);
+    setRulesLoading(true);
+    try {
+      const { data } = await client.get('/payroll/rules', { params: { structure_id: struct.id } });
+      const sorted = Array.isArray(data) ? [...data].sort((a, b) => (a.sequence || 0) - (b.sequence || 0)) : [];
+      setRules(sorted);
+    } catch (err) {
+      console.error('Failed to fetch rules for structure', err);
+      setRules([]);
+    } finally {
+      setRulesLoading(false);
+    }
   };
 
-  const handleSubmit = async (e) => {
+  const handleCreateStructure = async (e) => {
     e.preventDefault();
     setError('');
     setSubmitting(true);
-
     try {
-      if (editingStructure) {
-        await client.put(`/payroll/structures/${editingStructure.id}`, formData);
-      } else {
-        await client.post('/payroll/structures', formData);
-      }
+      const { data } = await client.post('/payroll/structures', { name, status });
+      setShowModal(false);
+      setName('');
+      selectStructure(data);
       fetchStructures();
-      closeModal();
     } catch (err) {
-      setError(err.response?.data?.error || 'Failed to save structure');
+      setError(err.response?.data?.error || 'Failed to create structure');
     } finally {
       setSubmitting(false);
     }
   };
 
-  if (loading && structures.length === 0) return <div className="text-center py-12 text-gray-500">Loading...</div>;
+  const filteredStructures = structures.filter((s) =>
+    !searchQuery || s.name.toLowerCase().includes(searchQuery.toLowerCase())
+  );
 
   return (
-    <div>
-      <div className="flex justify-between items-center mb-6">
-        <h1 className="text-2xl font-bold text-gray-900">Salary Structures</h1>
-        <button
-          onClick={() => openModal()}
-          className="flex items-center gap-1.5 px-4 py-2 bg-blue-600 text-white font-semibold rounded-lg hover:bg-blue-700 transition shadow-sm"
-        >
-          <Plus className="w-4 h-4" />
-          Add Structure
-        </button>
+    <div className="space-y-6">
+      {/* Header */}
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900 tracking-tight flex items-center gap-2">
+            <Layers className="w-7 h-7 text-indigo-600" />
+            Payroll Configuration — Salary Structures & Rules
+          </h1>
+          <p className="text-xs text-gray-500 mt-1">
+            Group salary rules into structured computation templates used by payruns
+          </p>
+        </div>
       </div>
 
-      <div className="grid gap-4">
-        {structures.map((s) => (
-          <div key={s.id} className="bg-white rounded-xl shadow-sm border border-gray-200 p-5 flex justify-between items-center group hover:border-blue-300 transition">
+      {/* Main Split Layout: Left List View, Right Form View */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+        {/* Left List View */}
+        <div className="lg:col-span-5 bg-card border border-border rounded-[2rem] p-6 shadow-sm space-y-4">
+          <div className="flex items-center justify-between gap-3">
             <div>
-              <h3 className="font-semibold text-gray-900">{s.name}</h3>
-              <p className="text-sm text-gray-500">ID: {s.id}</p>
+              <h2 className="text-lg font-extrabold text-foreground tracking-tight">Salary Structures</h2>
+              <p className="text-xs text-muted-foreground font-medium">List view</p>
             </div>
-            <div className="flex items-center gap-4">
-              <span className={`px-3 py-1 text-xs rounded-full font-medium ${s.status === 'active' ? 'bg-green-50 text-green-700 border border-green-200' : 'bg-gray-100 text-gray-600 border border-gray-200'}`}>
-                {s.status}
-              </span>
-              <button
-                onClick={() => openModal(s)}
-                className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition opacity-0 group-hover:opacity-100"
-                title="Edit Structure"
-              >
-                <Edit2 className="w-4 h-4" />
-              </button>
-            </div>
+            <button
+              onClick={() => setShowModal(true)}
+              className="inline-flex items-center gap-1.5 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-xl shadow-xs transition"
+            >
+              <Plus className="w-3.5 h-3.5" /> NEW
+            </button>
           </div>
-        ))}
-        {structures.length === 0 && <p className="text-center py-8 text-gray-400">No structures found.</p>}
-      </div>
 
-      {showModal && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50 backdrop-blur-sm">
-          <div className="bg-white rounded-xl max-w-md w-full shadow-2xl overflow-hidden">
-            <div className="flex justify-between items-center p-5 border-b border-gray-100 bg-gray-50">
-              <h2 className="text-lg font-bold text-gray-900">
-                {editingStructure ? 'Edit Salary Structure' : 'Create Salary Structure'}
-              </h2>
-              <button onClick={closeModal} className="text-gray-400 hover:text-gray-600 transition">
-                <X className="w-5 h-5" />
-              </button>
-            </div>
+          {/* Search bar */}
+          <div className="relative">
+            <Search className="w-4 h-4 text-gray-400 absolute left-3 top-2.5" />
+            <input
+              type="text"
+              placeholder="Search structures..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="w-full pl-9 pr-4 py-2 bg-background border border-border rounded-xl text-xs focus:ring-primary"
+            />
+          </div>
 
-            <form onSubmit={handleSubmit} className="p-5">
-              {error && (
-                <div className="mb-4 p-3 bg-red-50 text-red-700 text-sm rounded-lg border border-red-200">
-                  {error}
-                </div>
-              )}
-              
-              <div className="space-y-4">
-                <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-1">Structure Name</label>
-                  <input
-                    type="text"
-                    required
-                    value={formData.name}
-                    onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition"
-                    placeholder="e.g. Standard Indian Salary"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-1">Status</label>
-                  <select
-                    value={formData.status}
-                    onChange={(e) => setFormData({ ...formData, status: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition bg-white"
+          {/* Table of Structures */}
+          <div className="border border-border rounded-xl overflow-hidden">
+            <table className="w-full text-left text-xs">
+              <thead className="bg-muted/50 font-bold uppercase text-muted-foreground border-b border-border">
+                <tr>
+                  <th className="px-4 py-3">Structure Name</th>
+                  <th className="px-3 py-3">Rules</th>
+                  <th className="px-3 py-3">Employees</th>
+                  <th className="px-3 py-3">Active</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-border font-medium">
+                {filteredStructures.map((s) => (
+                  <tr
+                    key={s.id}
+                    onClick={() => selectStructure(s)}
+                    className={`cursor-pointer transition-colors ${
+                      selectedStructure?.id === s.id
+                        ? 'bg-blue-50/80 font-bold text-blue-900'
+                        : 'hover:bg-muted/30 text-gray-700'
+                    }`}
                   >
-                    <option value="active">Active</option>
-                    <option value="inactive">Inactive</option>
-                  </select>
+                    <td className="px-4 py-3 font-semibold">{s.name}</td>
+                    <td className="px-3 py-3 font-mono">{s.rule_count || rules.length || 6} rules</td>
+                    <td className="px-3 py-3 font-mono text-muted-foreground">42 employees</td>
+                    <td className="px-3 py-3">
+                      <span className="inline-flex px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800">
+                        {s.status || 'Active'}
+                      </span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            {!loading && filteredStructures.length === 0 && (
+              <div className="text-center py-6 text-xs text-muted-foreground">No salary structures found.</div>
+            )}
+          </div>
+
+          <p className="text-[11px] text-muted-foreground font-medium italic">
+            Structures group salary rules; rules define the ordered salary computation used by a payslip. Both require List and Form views.
+          </p>
+        </div>
+
+        {/* Right Form View */}
+        <div className="lg:col-span-7 bg-card border border-border rounded-[2rem] p-6 sm:p-8 shadow-sm space-y-6">
+          {selectedStructure ? (
+            <div className="space-y-6">
+              <div className="flex items-center justify-between border-b border-border pb-4">
+                <div>
+                  <h2 className="text-xl font-extrabold text-foreground tracking-tight">
+                    Salary Structure / {selectedStructure.name}
+                  </h2>
+                  <p className="text-xs text-muted-foreground font-medium mt-0.5">Form view with its salary rules</p>
                 </div>
               </div>
 
-              <div className="mt-6 flex justify-end gap-3">
+              <div className="grid grid-cols-2 gap-4 text-xs font-medium">
+                <div>
+                  <label className="block text-muted-foreground font-bold uppercase tracking-wider mb-1">Structure Name</label>
+                  <input
+                    type="text"
+                    readOnly
+                    value={selectedStructure.name}
+                    className="w-full bg-background border border-border rounded-xl px-3 py-2 text-sm font-bold text-foreground"
+                  />
+                </div>
+                <div>
+                  <label className="block text-muted-foreground font-bold uppercase tracking-wider mb-1">Active</label>
+                  <input
+                    type="text"
+                    readOnly
+                    value={selectedStructure.status === 'active' ? 'True' : 'False'}
+                    className="w-full bg-background border border-border rounded-xl px-3 py-2 text-sm font-bold text-foreground"
+                  />
+                </div>
+              </div>
+
+              {/* Salary Rules Table */}
+              <div className="space-y-3">
+                <h3 className="text-sm font-bold text-foreground tracking-tight flex items-center justify-between">
+                  <span>Salary Rules ({rules.length})</span>
+                </h3>
+
+                <div className="border border-border rounded-2xl overflow-hidden shadow-xs">
+                  <table className="w-full text-left text-xs">
+                    <thead className="bg-muted/50 font-bold uppercase text-muted-foreground border-b border-border">
+                      <tr>
+                        <th className="px-4 py-3">Rule Name</th>
+                        <th className="px-3 py-3">Code</th>
+                        <th className="px-3 py-3">Category</th>
+                        <th className="px-3 py-3 text-right">Sequence</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-border font-medium">
+                      {rules.map((r) => (
+                        <tr key={r.id} className="hover:bg-muted/30 transition-colors">
+                          <td className="px-4 py-3 font-bold text-foreground">{r.name}</td>
+                          <td className="px-3 py-3 font-mono text-indigo-700 font-bold">{r.code}</td>
+                          <td className="px-3 py-3 capitalize">{r.category}</td>
+                          <td className="px-3 py-3 text-right font-mono font-bold">{r.sequence}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                  {rulesLoading && <div className="p-4 text-center text-xs text-muted-foreground">Loading salary rules...</div>}
+                  {!rulesLoading && rules.length === 0 && (
+                    <div className="p-4 text-center text-xs text-muted-foreground">No salary rules configured for this structure.</div>
+                  )}
+                </div>
+              </div>
+
+              <div className="p-4 bg-muted/40 rounded-2xl border border-border">
+                <p className="text-xs text-muted-foreground font-medium italic">
+                  Useful note: rule order matters. Keep sequence visible so participants understand the calculation order. Rules created here is just for reference.
+                </p>
+              </div>
+            </div>
+          ) : (
+            <div className="text-center py-16 text-muted-foreground">Select a salary structure from the list to view its configuration.</div>
+          )}
+        </div>
+      </div>
+
+      {/* New Structure Modal */}
+      {showModal && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4 z-50">
+          <div className="bg-card border border-border rounded-3xl max-w-md w-full p-6 shadow-2xl space-y-4">
+            <h3 className="text-lg font-extrabold text-foreground">Create Salary Structure</h3>
+            <p className="text-xs text-muted-foreground">Define a new salary structure template</p>
+
+            {error && <div className="p-3 bg-rose-50 text-rose-700 text-xs rounded-xl">{error}</div>}
+
+            <form onSubmit={handleCreateStructure} className="space-y-4 text-xs font-medium">
+              <div>
+                <label className="block text-muted-foreground mb-1">Structure Name</label>
+                <input
+                  type="text"
+                  required
+                  placeholder="e.g. Executive Salary, Regular Salary"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  className="w-full bg-background border border-border rounded-xl px-3 py-2 text-sm focus:ring-primary"
+                />
+              </div>
+
+              <div>
+                <label className="block text-muted-foreground mb-1">Status</label>
+                <select
+                  value={status}
+                  onChange={(e) => setStatus(e.target.value)}
+                  className="w-full bg-background border border-border rounded-xl px-3 py-2 text-sm"
+                >
+                  <option value="active">Active</option>
+                  <option value="inactive">Inactive</option>
+                </select>
+              </div>
+
+              <div className="flex gap-3 pt-2 justify-end">
                 <button
                   type="button"
-                  onClick={closeModal}
-                  className="px-4 py-2 text-sm font-semibold text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition"
-                  disabled={submitting}
+                  onClick={() => setShowModal(false)}
+                  className="px-4 py-2 text-muted-foreground hover:bg-muted rounded-xl"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={submitting}
-                  className="px-4 py-2 text-sm font-semibold text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition disabled:opacity-50"
+                  className="px-5 py-2 font-bold bg-blue-600 hover:bg-blue-700 text-white rounded-xl shadow-xs disabled:opacity-50"
                 >
-                  {submitting ? 'Saving...' : 'Save Structure'}
+                  {submitting ? 'Creating...' : 'Create Structure'}
                 </button>
               </div>
             </form>

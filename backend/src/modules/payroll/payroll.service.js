@@ -3,6 +3,17 @@ const { computePayslip } = require('./ruleEngine');
 const hrCoreService = require('../hr-core/hrCore.service');
 const db = require('../../db');
 const { PayrollError, ValidationError, NotFoundError } = require('../../shared/errors');
+const performanceRepo = require('../performance/performance.repository');
+
+// An approved performance review paid out for the period is added as its own
+// allowance line, on top of (never instead of) the contract's joining bonus.
+async function getPerformanceBonus(employeeId, periodStart, periodEnd, wage) {
+  const review = await performanceRepo.findApprovedPerformancePay(employeeId, periodStart, periodEnd);
+  if (!review) return null;
+  const amount = Number(review.performance_pay || 0);
+  if (amount <= 0) return null;
+  return { review, amount, label: `Performance Bonus (${review.total_points} points)`, wage };
+}
 
 async function getPayrollInputs(employeeId, periodStart, periodEnd) {
   const raw = await repo.findPayrollInputs(employeeId, periodStart, periodEnd);
@@ -62,6 +73,10 @@ async function updateStructure(id, data) {
 // ───────────── Salary Rules ─────────────
 async function listRulesByStructure(structureId) {
   return repo.findRulesByStructure(structureId);
+}
+
+async function listPerformanceRulesByStructure(structureId) {
+  return repo.findPerformanceRulesByStructure(structureId);
 }
 
 async function createRule(data) {
@@ -162,9 +177,9 @@ async function createPayrun(data, createdBy) {
 
       // A joining bonus is paid out exactly once, on the contract's first payslip.
       const includeJoiningBonus = Number(contract.joining_bonus) > 0 && !contract.joining_bonus_payslip_id;
-      const grossTotal = includeJoiningBonus
-        ? result.gross_total + Number(contract.joining_bonus)
-        : result.gross_total;
+      const performanceBonus = await getPerformanceBonus(empId, data.period_start, data.period_end, contract.wage);
+      const extraPay = (includeJoiningBonus ? Number(contract.joining_bonus) : 0) + (performanceBonus?.amount || 0);
+      const grossTotal = result.gross_total + extraPay;
 
       // Insert payslip
       const payslip = await repo.insertPayslip({
@@ -173,7 +188,7 @@ async function createPayrun(data, createdBy) {
         contract_id: contract.id,
         worked_days: result.payrollInputs.worked_days,
         gross_total: grossTotal,
-        net_total: result.net_total + (grossTotal - result.gross_total),
+        net_total: result.net_total + extraPay,
         has_warning: hasWarning,
         warning_reason: warningReason,
       }, client);
@@ -200,6 +215,24 @@ async function createPayrun(data, createdBy) {
           value: Number(contract.joining_bonus),
         }, client);
         await hrCoreService.markContractJoiningBonusPaid(contract.id, payslip.id, client);
+      }
+
+      if (performanceBonus) {
+        await performanceRepo.insertAdjustment({
+          payslip_id: payslip.id,
+          employee_id: empId,
+          review_id: performanceBonus.review.id,
+          label: performanceBonus.label,
+          amount: performanceBonus.amount,
+        }, client);
+        await repo.insertPayslipLine({
+          payslip_id: payslip.id,
+          rule_id: null,
+          label: performanceBonus.label,
+          category: 'allowance',
+          sequence: (result.lines[result.lines.length - 1]?.sequence || 0) + (includeJoiningBonus ? 2 : 1),
+          value: performanceBonus.amount,
+        }, client);
       }
     }
 
@@ -289,14 +322,14 @@ async function transitionPayrun(payrunId, targetStatus) {
         // originally paid on (it was just deleted below), but never pay it a second time.
         const carriesJoiningBonus = Number(contract.joining_bonus) > 0
           && contract.joining_bonus_payslip_id === payslip.id;
-        const grossTotal = carriesJoiningBonus
-          ? result.gross_total + Number(contract.joining_bonus)
-          : result.gross_total;
+        const performanceBonus = await getPerformanceBonus(payslip.employee_id, payrun.period_start, payrun.period_end, contract.wage);
+        const extraPay = (carriesJoiningBonus ? Number(contract.joining_bonus) : 0) + (performanceBonus?.amount || 0);
+        const grossTotal = result.gross_total + extraPay;
 
         await repo.updatePayslipCalculation(payslip.id, {
           worked_days: result.payrollInputs.worked_days,
           gross_total: grossTotal,
-          net_total: result.net_total + (grossTotal - result.gross_total),
+          net_total: result.net_total + extraPay,
         }, client);
         await repo.deletePayslipLines(payslip.id, client);
         for (const line of result.lines) {
@@ -317,6 +350,23 @@ async function transitionPayrun(payrunId, targetStatus) {
             category: 'allowance',
             sequence: (result.lines[result.lines.length - 1]?.sequence || 0) + 1,
             value: Number(contract.joining_bonus),
+          }, client);
+        }
+        if (performanceBonus) {
+          await performanceRepo.insertAdjustment({
+            payslip_id: payslip.id,
+            employee_id: payslip.employee_id,
+            review_id: performanceBonus.review.id,
+            label: performanceBonus.label,
+            amount: performanceBonus.amount,
+          }, client);
+          await repo.insertPayslipLine({
+            payslip_id: payslip.id,
+            rule_id: null,
+            label: performanceBonus.label,
+            category: 'allowance',
+            sequence: (result.lines[result.lines.length - 1]?.sequence || 0) + (carriesJoiningBonus ? 2 : 1),
+            value: performanceBonus.amount,
           }, client);
         }
       }
@@ -439,6 +489,7 @@ module.exports = {
   createStructure,
   updateStructure,
   listRulesByStructure,
+  listPerformanceRulesByStructure,
   createRule,
   updateRule,
   deleteRule,

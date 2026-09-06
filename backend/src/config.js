@@ -26,7 +26,7 @@ module.exports = {
     from: process.env.SMTP_FROM || 'PeoplePay360 <no-reply@peoplepay360.local>',
   },
   resend: {
-    apiKey: process.env.resend_api_key,
+    apiKey: process.env.RESEND_API_KEY || process.env.resend_api_key,
     from: process.env.RESEND_FROM || 'onboarding@resend.dev',
   },
   aiServiceUrl: process.env.AI_SERVICE_URL || 'http://localhost:8001',
